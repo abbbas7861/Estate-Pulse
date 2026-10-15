@@ -1,0 +1,6 @@
+{
+  "name": "EstatePulse Brokerage Pro",
+  "description": "Enterprise Real Estate Property CRM SaaS featuring executive portfolio velocity analytics, an interactive lead acquisition Kanban pipeline, and MLS-synced luxury property inventory management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

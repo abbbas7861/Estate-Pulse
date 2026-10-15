@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/functions/:match*",
+      "destination": "https://gsyhniaoesaskmestrqt.supabase.co/functions/v1/:match*"
+    },
+    {
+      "source": "/api/:match*",
+      "destination": "https://gsyhniaoesaskmestrqt.supabase.co/functions/v1/:match*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "EstatePulse Brokerage Pro",
+  "short_name": "EstatePulse",
+  "description": "Enterprise Real Estate CRM SaaS featuring portfolio velocity analytics, lead acquisition Kanban, and MLS property inventory.",
+  "theme_color": "#047857",
+  "background_color": "#f8f9ff",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
