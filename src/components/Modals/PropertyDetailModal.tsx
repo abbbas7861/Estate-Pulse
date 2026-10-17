@@ -22,6 +22,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { Property, PropertyStatus, Lead } from '../../types/crm';
+import { formatMoney } from '../../config/regional';
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -196,10 +197,10 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
 
             <div className="flex flex-col sm:items-end">
               <span className="font-mono font-bold text-3xl text-[#005d42] tabular-nums">
-                {property.priceFormatted}
+                {property.price ? formatMoney(property.price) : property.priceFormatted}
               </span>
               <span className="text-xs font-semibold text-slate-400 mt-0.5">
-                Escrow valuation: ${(property.price / (property.sqft || 1)).toFixed(0)}/sqft
+                Escrow valuation: {formatMoney(property.price / (property.sqft || 1))}/sqft
               </span>
             </div>
           </div>

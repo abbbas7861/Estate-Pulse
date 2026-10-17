@@ -1,16 +1,14 @@
 /**
- * useAuth – Supabase Auth state listener for EstatePulse.
- * Provides the current session, user, and org_id via context.
+ * useAuth.ts – Supabase Auth listener and Multi-Tenant Context for EstatePulse.
+ * Provides session, user, and org_id state across the application.
  *
- * FIX #1 (Multi-Tenant Leak):
- *   - Removed the dangerous .limit(1) fallback that assigned new users to the
- *     first existing organization, causing cross-tenant data exposure.
- *   - New users now get a brand-new org provisioned via the
- *     `provision_new_organization` Postgres RPC, guaranteeing true isolation.
- *   - full_name is now populated from user_metadata.full_name; the email prefix
- *     is only used as a last resort when no real name is present.
+ * Secure Multi-Tenancy:
+ *   - Fetches org_id for the authenticated user from public.users table.
+ *   - Never falls back to arbitrary existing organizations (.limit(1)).
+ *   - Auto-provisions user's own organization via `ensure_my_org` RPC if user profile is pending.
  */
-import { createContext, useContext } from 'react';
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 
@@ -30,13 +28,21 @@ export const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-export function useAuth() {
+/**
+ * Hook to access current authentication state and active organization ID.
+ */
+export function useAuth(): AuthContextType {
   return useContext(AuthContext);
 }
 
+/**
+ * Resolves the authenticated user's organization ID from public.users table.
+ * If user profile does not exist yet (e.g., signup trigger latency), provisions
+ * a dedicated organization safely via the `ensure_my_org` RPC.
+ */
 export async function fetchOrgId(userId: string): Promise<string | null> {
   try {
-    // ── 1. Happy path: user profile row already exists ──────────────────────
+    // 1. Fetch user profile row from public.users table
     const { data, error } = await supabase
       .from('users')
       .select('org_id')
@@ -47,56 +53,87 @@ export async function fetchOrgId(userId: string): Promise<string | null> {
       return data.org_id as string;
     }
 
-    // ── 2. New user: provision a brand-new, isolated organization via RPC ───
-    //    NEVER fall back to an existing org row — that would cause cross-tenant
-    //    data leaks. Every new auth user gets their own org_id.
+    // 2. Fallback: provision dedicated organization for this user
     const userRes = await supabase.auth.getUser();
     const currentUser = userRes.data.user;
-
     if (!currentUser) return null;
 
-    // Resolve a meaningful brokerage name from metadata, falling back gracefully.
     const brokerageName =
       currentUser.user_metadata?.brokerage_name ||
       currentUser.user_metadata?.org_name ||
       'My Brokerage';
 
-    // Resolve the user's real full name — prefer metadata over email prefix.
-    const fullName =
-      currentUser.user_metadata?.full_name ||
-      currentUser.user_metadata?.name ||
-      null; // do NOT default to email prefix; let the DB store null
+    const { data: orgId, error: rpcErr } = await supabase.rpc('ensure_my_org', {
+      p_brokerage_name: brokerageName,
+    });
 
-    const { data: rpcData, error: rpcErr } = await supabase.rpc(
-      'provision_new_organization',
-      { p_brokerage_name: brokerageName }
-    );
-
-    if (rpcErr || !rpcData) {
-      console.error('[useAuth] provision_new_organization RPC failed:', rpcErr?.message);
+    if (rpcErr || !orgId) {
+      console.error('[useAuth] ensure_my_org RPC failed:', rpcErr?.message);
       return null;
     }
 
-    const newOrgId = rpcData as string;
-
-    // Insert the users profile row linking auth.uid() → new org_id.
-    const { error: upsertErr } = await supabase.from('users').upsert({
-      id: userId,
-      org_id: newOrgId,
-      email: currentUser.email || '',
-      // Only set full_name when we actually have a real name from metadata.
-      full_name: fullName,
-      role: 'agent',
-    });
-
-    if (upsertErr) {
-      console.warn('[useAuth] users upsert warning:', upsertErr.message);
-    }
-
-    return newOrgId;
+    return orgId as string;
   } catch (err) {
     console.warn('[useAuth] fetchOrgId warning:', err);
     return null;
   }
 }
 
+export interface AuthProviderProps {
+  children: React.ReactNode;
+}
+
+/**
+ * Standalone AuthProvider component that listens to Supabase auth state changes.
+ */
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    // Hydrate existing session
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        const oid = await fetchOrgId(s.user.id);
+        setOrgId(oid);
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        const oid = await fetchOrgId(s.user.id);
+        setOrgId(oid);
+      } else {
+        setOrgId(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setOrgId(null);
+  };
+
+  return React.createElement(
+    AuthContext.Provider,
+    { value: { session, user, orgId, loading, signOut } },
+    children
+  );
+}

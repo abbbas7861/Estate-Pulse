@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/functions/:match*",
-      "destination": "https://gsyhniaoesaskmestrqt.supabase.co/functions/v1/:match*"
+      "destination": "https://gsyhniaoesaskmesrkqt.supabase.co/functions/v1/:match*"
     },
     {
       "source": "/api/:match*",
-      "destination": "https://gsyhniaoesaskmestrqt.supabase.co/functions/v1/:match*"
+      "destination": "https://gsyhniaoesaskmesrkqt.supabase.co/functions/v1/:match*"
     },
     {
       "source": "/(.*)",

@@ -23,9 +23,9 @@ interface SidebarProps {
 }
 
 const OFFICES = [
-  { name: 'Apex Realty Group', branch: 'Beverly Hills Office' },
-  { name: 'Apex Realty Group', branch: 'West Hollywood Studio' },
-  { name: 'Apex Realty Group', branch: 'Santa Monica Coastal' },
+  { name: 'Prime Realty Group', branch: 'Main Corporate Office' },
+  { name: 'Prime Realty Group', branch: 'Commercial Acquisition Desk' },
+  { name: 'Prime Realty Group', branch: 'Private Clients Hub' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({

@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { REGION } from '../../config/regional';
 import { Building2, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 interface Props {
@@ -30,8 +31,8 @@ export function SignupPage({ onGoToLogin }: Props) {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (password.length < 10) {
+      setError('Password must be at least 10 characters.');
       return;
     }
 
@@ -138,7 +139,7 @@ export function SignupPage({ onGoToLogin }: Props) {
                 type="text"
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Beverly Hills Realty Group"
+                placeholder={REGION.examples.brokerage}
                 className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#97f5cc]/30 focus:border-[#97f5cc]/30 transition-all"
               />
             </div>
@@ -171,7 +172,7 @@ export function SignupPage({ onGoToLogin }: Props) {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 10 characters"
                   className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 pr-11 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#97f5cc]/30 focus:border-[#97f5cc]/30 transition-all"
                 />
                 <button

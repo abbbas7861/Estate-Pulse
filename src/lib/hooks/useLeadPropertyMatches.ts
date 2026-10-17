@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Lead, Property, PropertyMatch } from '../../types/crm';
+import { formatMoney } from '../../config/regional';
 
 export function calculatePropertyMatchScore(lead: Lead, prop: Property): { score: number; reasons: string[] } {
   let score = 0;
@@ -39,7 +40,7 @@ export function calculatePropertyMatchScore(lead: Lead, prop: Property): { score
   if (targetLower && (titleLower.includes(targetLower) || locationLower.includes(targetLower))) {
     score += 30;
     reasons.push('Direct location match (+30 pts)');
-  } else if (targetLower && (cityLower.includes(targetLower.split(' ')[0]) || locationLower.includes('beverly hills') || locationLower.includes('los angeles'))) {
+  } else if (targetLower && cityLower.includes(targetLower.split(' ')[0])) {
     score += 20;
     reasons.push('Regional location fit (+20 pts)');
   } else {
@@ -85,7 +86,9 @@ export function useLeadPropertyMatches(orgId: string | null, lead: Lead | null, 
         });
 
         if (!error && data && data.length > 0 && isMounted) {
-          setMatches(data as PropertyMatch[]);
+          setMatches(
+            (data as PropertyMatch[]).map((m) => ({ ...m, price_formatted: formatMoney(m.price, { compact: true }) }))
+          );
           setLoading(false);
           return;
         }

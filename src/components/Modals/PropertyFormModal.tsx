@@ -4,7 +4,7 @@
  * 
  * FIX:
  *   - Uses `location` and `address` fields interchangeably.
- *   - Uses placeholder "e.g. 740 Stradella Rd, Los Angeles, CA".
+ *   - Placeholders, currency and area units come from src/config/regional.ts.
  *   - Supports beds, baths, sqft, price, status, type, description, images.
  *   - Resets state cleanly when modal opens for a new property.
  */
@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Property, PropertyStatus, PropertyType, PropertyAmenity } from '../../types/crm';
 import { PropertyImageUpload } from '../Upload/PropertyImageUpload';
+import { REGION, AreaUnit, areaUnitLabel, convertArea, fromSqft, toSqft } from '../../config/regional';
 
 interface PropertyFormModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
   const [sqft, setSqft] = useState('');
+  const [areaUnit, setAreaUnit] = useState<AreaUnit>(REGION.areaUnit);
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [amenities, setAmenities] = useState<PropertyAmenity[]>([]);
@@ -73,7 +75,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         setType(property.type || '');
         setBeds(property.beds ? String(property.beds) : '');
         setBaths(property.baths ? String(property.baths) : '');
-        setSqft(property.sqft ? String(property.sqft) : '');
+        setSqft(property.sqft ? String(fromSqft(property.sqft, REGION.areaUnit)) : '');
+        setAreaUnit(REGION.areaUnit);
         setDescription(property.description || '');
         setImages(property.images || (property.imageUrl ? [property.imageUrl] : []));
         setAmenities(property.amenities || []);
@@ -87,6 +90,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         setBeds('');
         setBaths('');
         setSqft('');
+        setAreaUnit(REGION.areaUnit);
         setDescription('');
         setImages([]);
         setAmenities([]);
@@ -97,6 +101,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   }, [property, isOpen]);
 
   if (!isOpen) return null;
+
+  const handleAreaUnitChange = (next: AreaUnit) => {
+    const typed = Number(sqft);
+    if (typed > 0) setSqft(String(convertArea(typed, areaUnit, next)));
+    setAreaUnit(next);
+  };
 
   const handleAddAmenity = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +129,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
     setSaving(true);
     const numPrice = Number(price) || 0;
-    const numSqft = Number(sqft) || 0;
+    const numSqft = toSqft(Number(sqft) || 0, areaUnit); // database always stores square feet
 
     const payload: Partial<Property> = {
       title: title.trim(),
@@ -185,7 +195,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 name="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. The Promontory Bel Air Villa"
+                placeholder={`e.g. ${REGION.examples.title}`}
                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 font-medium"
               />
             </div>
@@ -200,14 +210,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 name="location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. 740 Stradella Rd, Los Angeles, CA"
+                placeholder={`e.g. ${REGION.examples.address}`}
                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
-                Listing Price ($ USD) *
+                Listing Price ({REGION.currency}) *
               </label>
               <input
                 type="number"
@@ -215,7 +225,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 name="price"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="e.g. 3250000"
+                placeholder={`e.g. ${REGION.examples.price}`}
                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 font-mono font-bold"
               />
             </div>
@@ -259,16 +269,32 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
-                Square Footage (Sq Ft)
+                Area ({areaUnitLabel(areaUnit)})
               </label>
-              <input
-                type="number"
-                name="sqft"
-                value={sqft}
-                onChange={(e) => setSqft(e.target.value)}
-                placeholder="e.g. 4200"
-                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 font-mono"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  name="sqft"
+                  value={sqft}
+                  onChange={(e) => setSqft(e.target.value)}
+                  placeholder={`e.g. ${REGION.examples.area}`}
+                  className="w-full min-w-0 bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 font-mono"
+                />
+                <select
+                  aria-label="Area unit"
+                  value={areaUnit}
+                  onChange={(e) => handleAreaUnitChange(e.target.value as AreaUnit)}
+                  className="bg-[#f8fafc] border border-slate-200 rounded-xl px-2.5 py-2.5 text-sm text-[#0b1c30] cursor-pointer"
+                >
+                  {REGION.areaUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {areaUnitLabel(u)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>

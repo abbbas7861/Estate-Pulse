@@ -4,6 +4,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { formatMoney, isHighValue } from '../../config/regional';
 import { Lead, LeadStage, LeadStageItem } from '../../types/crm';
 
 const DEFAULT_STAGES: LeadStageItem[] = [
@@ -35,7 +36,7 @@ function formatRelativeTime(dateString?: string): string {
 // Convert raw DB row to app Lead model
 function mapRowToLead(row: any): Lead {
   const budget = Number(row.budget) || 0;
-  const budgetFormatted = row.budget_formatted || (budget ? `$${(budget / 1000000).toFixed(2)}M` : '$0');
+  const budgetFormatted = formatMoney(budget, { compact: true });
   const daysSince = calculateDaysAgo(row.last_activity_at || row.created_at);
 
   return {
@@ -49,7 +50,7 @@ function mapRowToLead(row: any): Lead {
     stage: (row.stage as LeadStage) || 'assigned',
     targetProperty: row.target_property || '',
     targetPropertyId: row.target_property_id || undefined,
-    budgetLabel: budget >= 1000000 ? 'High Value' : 'Standard',
+    budgetLabel: isHighValue(budget) ? 'High Value' : 'Standard',
     budgetAmount: budget,
     budgetFormatted,
     brokerId: row.assigned_to || row.broker_id || null,
@@ -58,7 +59,7 @@ function mapRowToLead(row: any): Lead {
     brokerAvatarUrl: row.broker_avatar_url || undefined,
     note: row.note,
     noteType: row.note_type || 'info',
-    isHighValue: budget >= 1000000,
+    isHighValue: isHighValue(budget),
     isDirectInbound: row.source === 'Website' || row.source === 'Direct Inbound',
     tags: Array.isArray(row.tags) ? row.tags : [],
     assignedTo: row.assigned_to || row.broker_id || null,
@@ -223,7 +224,7 @@ export function useLeads(orgId: string | null) {
       return {
         data: null,
         error: new Error(
-          'No organization found for this account. Please execute fix_user_org_backfill.sql in your Supabase SQL editor.'
+          'No organization found for this account. Please sign out and sign in again, or contact support.'
         ),
       };
     }
@@ -238,7 +239,7 @@ export function useLeads(orgId: string | null) {
       };
 
       const budgetAmount = data.budgetAmount || 0;
-      const budgetFormatted = data.budgetFormatted || (budgetAmount ? `$${(budgetAmount / 1000000).toFixed(2)}M` : '$0');
+      const budgetFormatted = formatMoney(budgetAmount, { compact: true });
 
       const safeBrokerId = sanitizeUuid(data.brokerId);
       const safeAssignedTo = sanitizeUuid(data.assignedTo) || safeBrokerId || null;
@@ -409,7 +410,7 @@ export function useLeads(orgId: string | null) {
       if (updates.targetPropertyId !== undefined) dbPayload.target_property_id = updates.targetPropertyId;
       if (updates.budgetAmount !== undefined) {
         dbPayload.budget = updates.budgetAmount;
-        dbPayload.budget_formatted = updates.budgetFormatted || `$${(updates.budgetAmount / 1000000).toFixed(2)}M`;
+        dbPayload.budget_formatted = formatMoney(updates.budgetAmount, { compact: true });
       }
       if (updates.assignedTo !== undefined) {
         const safeAssigned = sanitizeUuid(updates.assignedTo);

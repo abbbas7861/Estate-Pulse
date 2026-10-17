@@ -259,7 +259,7 @@ export function useEmployeeSummary(orgId: string | null, dateRange: AnalyticsDat
         );
 
         const won = agentLeads.filter((l: any) =>
-          ['closing', 'negotiation', 'offer & escrow', 'won', 'closed'].includes((l.stage || l.stage_id || '').toLowerCase())
+          ['won', 'closed'].includes((l.stage || l.stage_id || '').toLowerCase())
         ).length;
 
         const lost = agentLeads.filter((l: any) =>

@@ -1,10 +1,9 @@
 /**
- * useSubscription.ts – Subscription Tier & Feature Gating Hook for EstatePulse.
- * Manages Free, Pro ($49/mo), and Enterprise ($199/mo) quotas and Stripe checkout.
+ * useSubscription.ts – Subscription Tier, 14-Day Free Trial & Lemon Squeezy Hook for EstatePulse.
+ * Manages 14-Day Pro Free Trial, Pro ($49/mo), and Enterprise ($199/mo) quotas and Lemon Squeezy checkout.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { loadStripe } from '@stripe/stripe-js';
 
 export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
 
@@ -51,8 +50,9 @@ export const TIER_LIMITS: Record<SubscriptionTier, PlanLimits> = {
 export function useSubscription(orgId: string | null) {
   const [tier, setTier] = useState<SubscriptionTier>('free');
   const [loading, setLoading] = useState(true);
-  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
+  const [lemonSqueezyCustomerId, setLemonSqueezyCustomerId] = useState<string | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('active');
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   const fetchSubscription = useCallback(async () => {
     if (!orgId) {
@@ -63,7 +63,7 @@ export function useSubscription(orgId: string | null) {
     try {
       const { data, error } = await supabase
         .from('organizations')
-        .select('subscription_tier, stripe_customer_id, subscription_status')
+        .select('subscription_tier, lemonsqueezy_customer_id, stripe_customer_id, subscription_status, trial_ends_at')
         .eq('id', orgId)
         .single();
 
@@ -74,8 +74,9 @@ export function useSubscription(orgId: string | null) {
         } else {
           setTier('free');
         }
-        setStripeCustomerId(data.stripe_customer_id || null);
+        setLemonSqueezyCustomerId(data.lemonsqueezy_customer_id || data.stripe_customer_id || null);
         setSubscriptionStatus(data.subscription_status || 'active');
+        setTrialEndsAt(data.trial_ends_at || null);
       }
     } catch (err) {
       console.warn('[useSubscription] Error fetching org subscription, defaulting to free:', err);
@@ -89,24 +90,53 @@ export function useSubscription(orgId: string | null) {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
+  // ── 14-Day Free Trial Calculation ──────────────────────────────────────────
+  const trialEndDate = trialEndsAt ? new Date(trialEndsAt) : null;
+  const isTrialActive =
+    tier === 'free' &&
+    trialEndDate !== null &&
+    trialEndDate.getTime() > Date.now();
+
+  const isTrialExpired =
+    tier === 'free' &&
+    (!trialEndDate || trialEndDate.getTime() <= Date.now());
+
+  const trialDaysRemaining = trialEndDate
+    ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
+  // If trial is active, grant full Pro limits; if trial expired on free tier, lock premium features.
+  const isLocked = isTrialExpired && tier === 'free';
+  const effectiveTier: SubscriptionTier = isTrialActive ? 'pro' : tier;
+  const limits = isLocked
+    ? {
+        maxUsers: 0,
+        maxLeads: 0,
+        maxProperties: 0,
+        hasAiInsights: false,
+        hasPrioritySupport: false,
+        hasCustomBranding: false,
+        hasBulkExport: false,
+      }
+    : TIER_LIMITS[effectiveTier] || TIER_LIMITS.free;
 
   const canCreateLead = (currentCount: number): boolean => {
+    if (isLocked) return false;
     return currentCount < limits.maxLeads;
   };
 
   const canCreateProperty = (currentCount: number): boolean => {
+    if (isLocked) return false;
     return currentCount < limits.maxProperties;
   };
 
   /**
-   * Triggers checkout session via Supabase Edge Function or direct Stripe session
+   * Triggers checkout session via Supabase Edge Function to Lemon Squeezy
    */
   const startCheckout = async (targetTier: 'pro' | 'enterprise') => {
     if (!orgId) throw new Error('Organization not found.');
 
     try {
-      // 1. Try Supabase Edge Function create-checkout-session
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           tier: targetTier,
@@ -117,28 +147,16 @@ export function useSubscription(orgId: string | null) {
 
       if (!error && data?.url) {
         window.location.href = data.url;
-        return;
+        return data;
       }
 
-      // 2. Direct Stripe Checkout fallback if edge function is deploying
-      const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-      if (publishableKey && data?.sessionId) {
-        const stripe = await loadStripe(publishableKey);
-        await (stripe as any)?.redirectToCheckout({ sessionId: data.sessionId });
-        return;
-      }
-
-      // 3. Fallback: simulate immediate upgrade for development/testing if no live Stripe key configured
-      if (!publishableKey && (!data || error)) {
-        await supabase
-          .from('organizations')
-          .update({ subscription_tier: targetTier, subscription_status: 'active' })
-          .eq('id', orgId);
+      if (data?.simulated) {
+        // Dev fallback simulation
         setTier(targetTier);
-        return { simulated: true };
+        return data;
       }
 
-      throw new Error(error?.message || 'Failed to initialize checkout session.');
+      throw new Error(error?.message || 'Billing is not set up yet. Please contact support to upgrade.');
     } catch (err: any) {
       console.error('[startCheckout] Error:', err);
       throw err;
@@ -146,7 +164,7 @@ export function useSubscription(orgId: string | null) {
   };
 
   /**
-   * Opens the Stripe Customer Portal
+   * Opens the Lemon Squeezy Customer Portal
    */
   const openCustomerPortal = async () => {
     if (!orgId) throw new Error('Organization not found.');
@@ -164,21 +182,28 @@ export function useSubscription(orgId: string | null) {
         return;
       }
 
-      throw new Error(error?.message || 'Unable to open Stripe Customer Portal.');
+      // Default Lemon Squeezy buyer portal
+      window.open('https://app.lemonsqueezy.com/my-orders', '_blank');
     } catch (err: any) {
       console.error('[openCustomerPortal] Error:', err);
-      throw err;
+      window.open('https://app.lemonsqueezy.com/my-orders', '_blank');
     }
   };
 
   return {
     tier,
+    effectiveTier,
     loading,
     limits,
-    stripeCustomerId,
+    lemonSqueezyCustomerId,
     subscriptionStatus,
+    trialEndsAt,
+    isTrialActive,
+    isTrialExpired,
+    trialDaysRemaining,
+    isLocked,
     isFree: tier === 'free',
-    isPro: tier === 'pro',
+    isPro: effectiveTier === 'pro',
     isEnterprise: tier === 'enterprise',
     canCreateLead,
     canCreateProperty,

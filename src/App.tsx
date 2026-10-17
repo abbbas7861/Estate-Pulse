@@ -90,6 +90,7 @@ import { useProperties } from './lib/hooks/useProperties';
 import { AuthContext, AuthContextType, fetchOrgId } from './lib/useAuth';
 import { supabase } from './lib/supabaseClient';
 import { Lead, LeadStage, PageView, Property, PropertyStatus } from './types/crm';
+import { REGION, areaUnitLabel, formatMoney } from './config/regional';
 
 // ─── Auth guard wrapper ────────────────────────────────────────────────────────
 
@@ -356,24 +357,23 @@ function Dashboard({ orgId, user, onSignOut }: DashboardProps) {
     triggerToast(`Published "${newProp.title}" (${newProp.mlsId}) to MLS Inventory.`);
   };
 
-  const handleUpdatePropertyStatus = (
+  const handleUpdatePropertyStatus = async (
     propertyId: string,
     newStatus: PropertyStatus,
     newPrice?: number
   ) => {
-    setProperties((prev) =>
-      prev.map((prop) => {
-        if (prop.id !== propertyId) return prop;
-        const updatedPrice = newPrice ?? prop.price;
-        return {
-          ...prop,
-          status: newStatus,
-          price: updatedPrice,
-          priceFormatted: `$${updatedPrice.toLocaleString('en-US')}`,
-        };
-      })
-    );
-    triggerToast(`Updated MLS record status to "${newStatus}".`);
+    // Saved to the database (it used to change the screen only and vanish on refresh).
+    const updates: Partial<Property> = { status: newStatus };
+    if (newPrice !== undefined) {
+      updates.price = newPrice;
+      updates.priceFormatted = formatMoney(newPrice, { compact: true });
+    }
+    const { error } = await updateProperty(propertyId, updates);
+    if (error) {
+      triggerToast(`Failed to update listing status: ${error.message}`);
+    } else {
+      triggerToast(`Updated listing status to "${newStatus}".`);
+    }
   };
 
   const handleShareProperty = (property: Property) => {
@@ -625,33 +625,36 @@ function Dashboard({ orgId, user, onSignOut }: DashboardProps) {
 
             {settingsTab === 'support' ? (
               <div className="flex flex-col gap-3 text-[13px] text-[#3e4943]">
-                <p>
-                  Dedicated Beverly Hills MLS technical desk is available 24/7 for escrow document
-                  verification and feed syndication.
-                </p>
-                <div className="bg-[#eff4ff] rounded-xl p-3.5 flex flex-col gap-1">
-                  <span className="text-[11px] font-semibold text-[#005d42]">
-                    DIRECT CONCIERGE LINE
-                  </span>
-                  <span className="font-mono font-bold text-[#0b1c30] tabular-nums">
-                    +1 (800) 555-0199 • ext. 914
-                  </span>
-                  <span className="text-[12px]">support@estatepulse.io</span>
-                </div>
+                <p>Our team can help with your workspace, listings, leads and billing.</p>
+                {(REGION.support.phone || REGION.support.email) && (
+                  <div className="bg-[#eff4ff] rounded-xl p-3.5 flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-[#005d42]">SUPPORT</span>
+                    {REGION.support.phone && (
+                      <span className="font-mono font-bold text-[#0b1c30] tabular-nums">
+                        {REGION.support.phone}
+                      </span>
+                    )}
+                    {REGION.support.email && (
+                      <span className="text-[12px]">{REGION.support.email}</span>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-3 text-[13px] text-[#3e4943]">
                 <div className="flex items-center justify-between py-2 border-b border-slate-100">
                   <div>
-                    <p className="font-semibold text-[#0b1c30]">CA-Regional MLS Feed #914</p>
-                    <p className="text-[11px] text-[#6e7a73]">Auto-sync every 5 minutes</p>
+                    <p className="font-semibold text-[#0b1c30]">Workspace Region</p>
+                    <p className="text-[11px] text-[#6e7a73]">
+                      {REGION.currency} · {areaUnitLabel(REGION.areaUnit)}
+                    </p>
                   </div>
-                  <span className="text-[12px] font-semibold text-[#005d42]">Connected</span>
+                  <span className="text-[12px] font-semibold text-[#005d42]">{REGION.id}</span>
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <p className="font-semibold text-[#0b1c30]">Auto-Lead Bot Routing</p>
-                    <p className="text-[11px] text-[#6e7a73]">Round-robin high-value inquiries (&gt; $1M)</p>
+                    <p className="font-semibold text-[#0b1c30]">Auto-Lead Routing</p>
+                    <p className="text-[11px] text-[#6e7a73]">Round-robin new leads across your team</p>
                   </div>
                   <span className="text-[12px] font-semibold text-[#005d42]">Enabled</span>
                 </div>

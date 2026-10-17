@@ -29,6 +29,7 @@ import { PropertyDetailModal } from '../Modals/PropertyDetailModal';
 import { PropertyFormModal } from '../Modals/PropertyFormModal';
 import { LeadPickerModal } from '../Modals/LeadPickerModal';
 import { supabase } from '../../lib/supabaseClient';
+import { formatMoney, useCurrency } from '../../config/regional';
 
 interface PropertyListingPageProps {
   properties: Property[];
@@ -64,6 +65,7 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
   onNotify,
   onRefreshLeads,
 }) => {
+  const [currency] = useCurrency();
   const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -255,7 +257,7 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
               </span>
             </div>
             <span className="text-[11px] text-[#6e7a73] mt-1 tabular-nums">
-              ${(properties.reduce((s, p) => s + (p.price || 0), 0) / 1000000).toFixed(1)}M aggregate volume
+              {formatMoney(properties.reduce((s, p) => s + (p.price || 0), 0), { compact: true })} aggregate volume
             </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#eff4ff] flex items-center justify-center text-[#005d42]">
@@ -277,7 +279,7 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
               </span>
             </div>
             <span className="text-[11px] text-[#6e7a73] mt-1 tabular-nums">
-              ${(properties.filter((p) => p.status === 'Pending Escrow').reduce((s, p) => s + p.price, 0) / 1000000).toFixed(1)}M under contract
+              {formatMoney(properties.filter((p) => p.status === 'Pending Escrow').reduce((s, p) => s + p.price, 0), { compact: true })} under contract
             </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#99efe5]/50 flex items-center justify-center text-[#006a63]">
@@ -431,9 +433,9 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
               className="appearance-none bg-[#eff4ff] hover:bg-[#e5eeff] text-[#0b1c30] pl-3.5 pr-8 py-2 rounded-lg text-[12px] font-medium outline-none cursor-pointer"
             >
               <option value="any">Price Range: Any</option>
-              <option value="under2m">&lt; $2,000,000</option>
-              <option value="2to4m">$2,000,000 - $4,000,000</option>
-              <option value="over4m">&gt; $4,000,000</option>
+              <option value="under2m">&lt; {formatMoney(2000000, { compact: true })}</option>
+              <option value="2to4m">{formatMoney(2000000, { compact: true })} - {formatMoney(4000000, { compact: true })}</option>
+              <option value="over4m">&gt; {formatMoney(4000000, { compact: true })}</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6e7a73] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>

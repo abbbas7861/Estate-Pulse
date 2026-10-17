@@ -190,7 +190,7 @@ export const TodaysFollowUpsWidget: React.FC<Props> = ({ orgId, userId, onNotify
             autoFocus
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="e.g. Call Marcus re: counter-offer"
+            placeholder="e.g. Call client re: counter-offer"
             className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/20"
           />
           <div className="flex items-center justify-between">

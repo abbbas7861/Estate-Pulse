@@ -7,6 +7,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Property, PropertyStatus, PropertyAmenity, PropertyType } from '../../types/crm';
 import { useAuth } from '../useAuth';
+import { REGION, formatMoney, formatArea } from '../../config/regional';
 
 function mapRowToProperty(
   row: any,
@@ -31,13 +32,13 @@ function mapRowToProperty(
   return {
     id: row.id,
     orgId: row.org_id,
-    mlsId: row.mls_number || row.mls_id || `MLS #BH-${String(row.id || '').slice(0, 4)}-24`,
+    mlsId: row.mls_number || row.mls_id || `REF-${String(row.id || '').slice(0, 6).toUpperCase()}`,
     title: row.title || 'Untitled Property',
     location,
     address: location,
-    city: row.city || (location.includes(',') ? location.split(',').slice(-2, -1)[0]?.trim() : 'Beverly Hills'),
+    city: row.city || (location.includes(',') ? location.split(',').slice(-2, -1)[0]?.trim() : REGION.defaultCity),
     price,
-    priceFormatted: row.price_formatted || (price > 0 ? `$${price.toLocaleString('en-US')}` : '$0'),
+    priceFormatted: formatMoney(price, { compact: true }),
     previousPriceFormatted: row.previous_price_formatted,
     status: (row.status as PropertyStatus) || 'Active Listing',
     type: (row.type as PropertyType) || 'Residential',
@@ -46,7 +47,7 @@ function mapRowToProperty(
     sqft,
     sqftFormatted: row.sqft_formatted || (sqft > 0 ? sqft.toLocaleString('en-US') : '0'),
     highlightLabel: row.highlight_label || (beds > 0 ? `${beds} Beds` : 'Feature'),
-    highlightValue: row.highlight_value || (sqft > 0 ? `${sqft.toLocaleString()} sqft` : 'Luxury'),
+    highlightValue: row.highlight_value || (sqft > 0 ? formatArea(sqft) : 'Luxury'),
     imageUrl: primaryImage,
     images,
     amenities,

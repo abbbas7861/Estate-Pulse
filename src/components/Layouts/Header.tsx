@@ -2,14 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Bell,
   ChevronDown,
+  Globe,
   Menu,
   MessageSquare,
+  Moon,
   Plus,
   Search,
+  Sun,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../lib/useAuth';
 import { supabase } from '../../lib/supabaseClient';
+import { useTheme } from '../../lib/useTheme';
+import { useCurrency, CURRENCY_CONFIGS, SupportedCurrency } from '../../config/regional';
 
 interface HeaderProps {
   globalSearch: string;
@@ -42,6 +47,10 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
+
+  const [theme, , toggleTheme] = useTheme();
+  const [currency, setCurrency] = useCurrency();
 
   // Real user details (FIX #15)
   const fullName =
@@ -206,11 +215,71 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Primary Action + Quick Popovers + Broker Profile */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Currency Toggle Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCurrencyMenu(!showCurrencyMenu);
+                setShowMessages(false);
+                setShowNotifications(false);
+                setShowProfileMenu(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-white hover:bg-[#eff4ff] text-[#0b1c30] text-[12px] font-semibold transition-colors cursor-pointer shadow-2xs"
+              aria-label="Change currency"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#005d42]" />
+              <span>{CURRENCY_CONFIGS[currency]?.label || currency}</span>
+              <ChevronDown className="w-3 h-3 text-[#6e7a73]" />
+            </button>
+
+            {showCurrencyMenu && (
+              <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-lg border border-slate-200 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
+                  Select Currency
+                </div>
+                {(['PKR', 'USD', 'AED'] as SupportedCurrency[]).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setCurrency(c);
+                      setShowCurrencyMenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[12px] transition-colors text-left cursor-pointer ${
+                      currency === c
+                        ? 'bg-[#eff4ff] text-[#005d42] font-bold'
+                        : 'text-[#0b1c30] hover:bg-slate-50 font-medium'
+                    }`}
+                  >
+                    <span>{CURRENCY_CONFIGS[c].name}</span>
+                    <span className="font-mono text-[11px] text-slate-500 font-semibold">{CURRENCY_CONFIGS[c].symbol}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sun / Moon Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#3e4943] hover:bg-[#eff4ff] hover:text-[#0b1c30] transition-colors relative cursor-pointer"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-[18px] h-[18px] text-amber-400" />
+            ) : (
+              <Moon className="w-[18px] h-[18px] text-[#3e4943]" />
+            )}
+          </button>
+
           <button
             type="button"
             onClick={onOpenNewTransaction}
-            className="flex items-center gap-1.5 bg-[#047857] hover:bg-[#005d42] text-white px-4 py-2 rounded-lg transition-colors text-[13px] font-semibold whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
+            className="hidden sm:flex items-center gap-1.5 bg-[#047857] hover:bg-[#005d42] text-white px-4 py-2 rounded-lg transition-colors text-[13px] font-semibold whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>New Transaction</span>

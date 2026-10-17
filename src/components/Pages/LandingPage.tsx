@@ -397,11 +397,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-amber-400" />)}
               </div>
               <p className="text-[13px] text-slate-700 leading-relaxed mb-4">
-                &ldquo;EstatePulse transformed our Beverly Hills desk. Moving from manual spreadsheets to the auto-mapper and round-robin dispatch doubled our closed escrow velocity.&rdquo;
+                &ldquo;EstatePulse transformed our luxury acquisition desk. Moving from manual spreadsheets to the auto-mapper and round-robin dispatch doubled our closed escrow velocity.&rdquo;
               </p>
               <div>
-                <p className="font-display font-bold text-sm text-[#0b1c30]">Claire Vance</p>
-                <p className="text-[11px] text-slate-500">Managing Luxury Partner, Vance &amp; Co.</p>
+                <p className="font-display font-bold text-sm text-[#0b1c30]">Tariq Mahmood</p>
+                <p className="text-[11px] text-slate-500">Managing Luxury Partner, Premier Realty</p>
               </div>
             </div>
 
@@ -410,11 +410,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-amber-400" />)}
               </div>
               <p className="text-[13px] text-slate-700 leading-relaxed mb-4">
-                &ldquo;The AI insights report is something our dealership partners actually review every Monday morning. It flags drop-offs before we lose high-net-worth buyers.&rdquo;
+                &ldquo;The AI insights report is something our leadership partners review every Monday morning. It flags pipeline drop-offs before we lose high-net-worth buyers.&rdquo;
               </p>
               <div>
-                <p className="font-display font-bold text-sm text-[#0b1c30]">David Chen</p>
-                <p className="text-[11px] text-slate-500">Principal Broker, Pacific Palisades Realty</p>
+                <p className="font-display font-bold text-sm text-[#0b1c30]">Ayesha Khan</p>
+                <p className="text-[11px] text-slate-500">Principal Broker, Apex Property Group</p>
               </div>
             </div>
 
@@ -423,11 +423,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-amber-400" />)}
               </div>
               <p className="text-[13px] text-slate-700 leading-relaxed mb-4">
-                &ldquo;The PWA offline capability is exceptional. In deep Malibu canyons with zero cell service, our associates can pull up full property specs and client notes instantly.&rdquo;
+                &ldquo;The PWA offline capability is exceptional. In remote construction sites with zero cell service, our associates can pull up full property specs and client notes instantly.&rdquo;
               </p>
               <div>
-                <p className="font-display font-bold text-sm text-[#0b1c30]">Sarah Jenkins</p>
-                <p className="text-[11px] text-slate-500">Director of Architectural Estates</p>
+                <p className="font-display font-bold text-sm text-[#0b1c30]">Bilal Siddiqui</p>
+                <p className="text-[11px] text-slate-500">Director of Commercial Estates</p>
               </div>
             </div>
           </div>

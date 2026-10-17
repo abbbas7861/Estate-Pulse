@@ -11,6 +11,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { Property } from '../../types/crm';
+import { formatMoney } from '../../config/regional';
 
 interface PropertyListingCardProps {
   property: Property;
@@ -281,7 +282,7 @@ export const PropertyListingCard: React.FC<PropertyListingCardProps> = ({
         <div className="absolute bottom-3.5 left-4 right-4 flex items-baseline justify-between gap-2">
           <div className="flex items-baseline gap-2">
             <span className="font-display font-bold text-[28px] text-white leading-tight drop-shadow-xs tabular-nums">
-              {property.priceFormatted}
+              {property.price ? formatMoney(property.price, { compact: true }) : property.priceFormatted}
             </span>
             {property.previousPriceFormatted && (
               <span className="text-[12px] text-[#dce9ff] line-through tabular-nums">

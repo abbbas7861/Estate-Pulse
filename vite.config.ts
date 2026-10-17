@@ -54,20 +54,9 @@ export default defineConfig(({ mode }) => {
               },
             },
             {
-              // Network-first for Supabase REST API and GraphQL
-              urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*|^https:\/\/.*\.supabase\.co\/auth\/v1\/.*/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'estatepulse-supabase-api',
-                networkTimeoutSeconds: 5,
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24, // 1 Day
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
+              // Never cache Supabase REST/auth/functions responses: they hold private CRM data and auth tokens
+              urlPattern: /^https:\/\/.*\.supabase\.co\/(rest|auth|functions)\/v1\/.*/i,
+              handler: 'NetworkOnly',
             },
             {
               // Cache Google Fonts
@@ -90,7 +79,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Forward all requests starting with /supabase-api to the real Supabase URL
         '/supabase-api': {
-          target: env.VITE_SUPABASE_URL || 'https://gsyhniaoesaskmesrkqt.supabase.co',
+          target: env.VITE_SUPABASE_URL,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/supabase-api/, ''),
           secure: false,
