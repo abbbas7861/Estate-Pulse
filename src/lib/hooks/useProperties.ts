@@ -9,6 +9,16 @@ import { Property, PropertyStatus, PropertyAmenity, PropertyType } from '../../t
 import { useAuth } from '../useAuth';
 import { REGION, formatMoney, formatArea } from '../../config/regional';
 
+declare module '../../types/crm' {
+  interface Property {
+    virtualTourUrl?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    model_3d_url?: string | null;
+    is_public?: boolean;
+  }
+}
+
 function mapRowToProperty(
   row: any,
   amenities: PropertyAmenity[] = [],
@@ -58,6 +68,14 @@ function mapRowToProperty(
     inquiries: Number(row.inquiries) || 0,
     isFavorite: !!row.is_favorite,
     description: row.description || '',
+    virtualTourUrl: row.virtual_tour_url || null,
+    ownerName: row.owner_name || undefined,
+    ownerPhone: row.owner_phone || undefined,
+    ownerCnic: row.owner_cnic || undefined,
+    latitude: row.latitude !== undefined && row.latitude !== null ? Number(row.latitude) : null,
+    longitude: row.longitude !== undefined && row.longitude !== null ? Number(row.longitude) : null,
+    model_3d_url: row.model_3d_url || null,
+    is_public: row.is_public !== undefined ? Boolean(row.is_public) : true,
   };
 }
 
@@ -199,6 +217,7 @@ export function useProperties(orgId: string | null) {
         org_id: orgId,
         title: data.title?.trim() || 'New Luxury Listing',
         description: data.description || '',
+        virtual_tour_url: data.virtualTourUrl?.trim() || null,
         price,
         location: locationVal,
         address: locationVal,
@@ -209,6 +228,9 @@ export function useProperties(orgId: string | null) {
         baths,
         sqft,
         broker_name: brokerName,
+        owner_name: data.ownerName?.trim() || null,
+        owner_phone: data.ownerPhone?.trim() || null,
+        owner_cnic: data.ownerCnic?.trim() || null,
       };
 
       const { data: inserted, error: insertErr } = await supabase
@@ -267,17 +289,18 @@ export function useProperties(orgId: string | null) {
       return { error: new Error('No active organization. Please sign in again.') };
     }
 
-    // Optimistic local update
+    // Save snapshot FIRST, then apply optimistic update
+    const previous = [...propertiesRef.current];
+
     setProperties((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
     );
-
-    const previous = [...propertiesRef.current];
 
     try {
       const dbPayload: any = {};
       if (updates.title !== undefined) dbPayload.title = updates.title;
       if (updates.description !== undefined) dbPayload.description = updates.description;
+      if (updates.virtualTourUrl !== undefined) dbPayload.virtual_tour_url = updates.virtualTourUrl?.trim() || null;
       if (updates.price !== undefined) dbPayload.price = Number(updates.price) || 0;
       if (updates.location !== undefined) {
         dbPayload.location = updates.location;
@@ -293,6 +316,9 @@ export function useProperties(orgId: string | null) {
       if (updates.baths !== undefined) dbPayload.baths = Number(updates.baths) || 0;
       if (updates.sqft !== undefined) dbPayload.sqft = Number(updates.sqft) || 0;
       if (updates.brokerName !== undefined) dbPayload.broker_name = updates.brokerName;
+      if (updates.ownerName !== undefined) dbPayload.owner_name = updates.ownerName?.trim() || null;
+      if (updates.ownerPhone !== undefined) dbPayload.owner_phone = updates.ownerPhone?.trim() || null;
+      if (updates.ownerCnic !== undefined) dbPayload.owner_cnic = updates.ownerCnic?.trim() || null;
 
       const { error: updateErr } = await supabase
         .from('properties')

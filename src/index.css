@@ -124,7 +124,59 @@
 .dark input,
 .dark select,
 .dark textarea {
+  background-color: #182436 !important;
   color: #f1f5f9 !important;
+  border-color: #1e293b !important;
+}
+
+/* ── Dark mode: Lead Kanban card internals ───────────────────────────────── */
+
+/* Kanban column background */
+.dark .bg-\[\#f8fafc\] {
+  background-color: #131e2e !important;
+}
+
+/* Lead tag chips: bg-slate-100 text-slate-700 */
+.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+/* Lead note callout: bg-[#eff4ff] (inner note box on card) */
+/* Already covered by .dark .bg-[#eff4ff] rule above but these need explicit text fix */
+.dark .bg-\[\#eff4ff\] .text-\[\#0b1c30\] {
+  color: #e2e8f0 !important;
+}
+
+/* Source badge dark overrides */
+.dark .bg-blue-50   { background-color: rgba(30, 58, 138, 0.25) !important; }
+.dark .bg-purple-50 { background-color: rgba(76, 29, 149, 0.25) !important; }
+.dark .bg-teal-50   { background-color: rgba(19, 78, 74, 0.25)  !important; }
+.dark .bg-emerald-50 { background-color: rgba(6, 78, 59, 0.20)  !important; }
+
+/* Amber duplicate warning banner */
+.dark .bg-amber-50 { background-color: rgba(120, 53, 15, 0.18) !important; }
+.dark .border-amber-200 { border-color: #92400e !important; }
+.dark .text-amber-900 { color: #fcd34d !important; }
+
+/* ── Dark mode: Property / KPI card internals ────────────────────────────── */
+
+/* Architectural specs strip bg-[#eff4ff] inside card — already covered; fix label contrast */
+.dark .bg-\[\#eff4ff\] .text-\[\#6e7a73\] {
+  color: #64748b !important;
+}
+
+/* ── Dark mode: Trial-lock glassmorphism overlay ─────────────────────────── */
+.dark .bg-white\/90,
+.dark .bg-white\/95 {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* ── Dark mode: Amber border on lock overlay ─────────────────────────────── */
+.dark .border-amber-300 {
+  border-color: #92400e !important;
 }
 
 .tabular-nums {
@@ -156,3 +208,95 @@
 .dark .kanban-scroll::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+:root {
+  --primary: #005d42;
+  --primary-hover: #004d37;
+  --bg-main: #f8f9ff;
+  --bg-card: #ffffff;
+  --text-main: #0b1c30;
+  --text-muted: #6e7a73;
+  --border-color: #e2e8f0;
+  --sidebar-bg: var(--bg-card);
+  --header-bg: var(--bg-card);
+}
+
+[data-theme="emerald"] {
+  --primary: #005d42;
+  --primary-hover: #004d37;
+  --bg-main: #f8f9ff;
+  --bg-card: #ffffff;
+  --text-main: #0b1c30;
+  --text-muted: #6e7a73;
+  --border-color: #e2e8f0;
+  --sidebar-bg: var(--bg-card);
+  --header-bg: var(--bg-card);
+}
+[data-theme="ocean"] {
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --bg-main: #f0f9ff;
+  --bg-card: #ffffff;
+  --text-main: #0c4a6e;
+  --text-muted: #475569;
+  --border-color: #bae6fd;
+  --sidebar-bg: var(--bg-card);
+  --header-bg: var(--bg-card);
+}
+[data-theme="royal"] {
+  --primary: #7c3aed;
+  --primary-hover: #6d28d9;
+  --bg-main: #faf5ff;
+  --bg-card: #ffffff;
+  --text-main: #3b0764;
+  --text-muted: #6b7280;
+  --border-color: #e9d5ff;
+  --sidebar-bg: var(--bg-card);
+  --header-bg: var(--bg-card);
+}
+[data-theme="dark"] {
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --sidebar-bg: var(--bg-card);
+  --header-bg: var(--bg-card);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-fade-up { animation: fadeUp 0.8s ease-out forwards; }
+.animate-float { animation: float 4s ease-in-out infinite; }
+
+@keyframes fadeSlideUp {
+  0% { opacity: 0; transform: translateY(40px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slowFloat {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-fade-slide { animation: fadeSlideUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+.animate-slow-float { animation: slowFloat 4s ease-in-out infinite; }
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+
+
+
+

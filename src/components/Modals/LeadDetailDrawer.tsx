@@ -27,16 +27,21 @@ import {
   Maximize2,
   Bed,
   Bath,
+  MapPin,
+  Activity as ActivityIcon,
 } from 'lucide-react';
 import { Lead, LeadStageItem, Activity, Property } from '../../types/crm';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../lib/useAuth';
 import { useLeadPropertyMatches } from '../../lib/hooks/useLeadPropertyMatches';
+import { WhatsAppIcon, openWhatsAppChat } from '../../lib/whatsapp';
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
   isOpen: boolean;
   stages: LeadStageItem[];
   availableProperties?: Property[];
+  currentUser?: { full_name?: string } | null;
   onClose: () => void;
   onUpdateLead: (id: string, updates: Partial<Lead>) => Promise<{ error: Error | null }>;
   onSelectPropertyMatch?: (propertyId: string) => void;
@@ -50,11 +55,13 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   isOpen,
   stages,
   availableProperties = [],
+  currentUser,
   onClose,
   onUpdateLead,
   onSelectPropertyMatch,
   onNotify,
 }) => {
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
@@ -67,8 +74,11 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   const [submittingAction, setSubmittingAction] = useState(false);
 
   // Tag state
-  const [newTagInput, setNewTagInput] = useState('');
-  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTag, setNewTag] = useState('');
+
+  // Activity log state
+  const [logAction, setLogAction] = useState('call');
+  const [logDetails, setLogDetails] = useState('');
 
   // Auto-Mapper Matches
   const { matches, loading: loadingMatches } = useLeadPropertyMatches(
@@ -165,34 +175,34 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
     }
   };
 
-  // Handle adding tag
-  const handleAddTag = async (e: React.FormEvent) => {
+  // Handle logging a quick activity from the timeline form
+  const handleLogActivity = async (e: React.FormEvent) => {
     e.preventDefault();
-    const tag = newTagInput.trim();
-    if (!tag) return;
+    if (!logDetails.trim() || !lead.orgId) return;
+    
+    // FIXED: Using correct database columns (type, title, description) instead of (action, details)
+    const { error } = await supabase.from('activities').insert({
+      org_id: lead.orgId,
+      lead_id: lead.id,
+      user_id: user?.id ?? null,
+      type: logAction,
+      title: `Logged ${logAction}`,
+      description: logDetails.trim(),
+    });
 
-    const currentTags = lead.tags || [];
-    if (currentTags.includes(tag)) {
-      setNewTagInput('');
-      setIsAddingTag(false);
-      return;
-    }
-
-    const updated = [...currentTags, tag];
-    const { error } = await onUpdateLead(lead.id, { tags: updated });
     if (!error) {
-      setNewTagInput('');
-      setIsAddingTag(false);
-      onNotify(`Added tag "${tag}"`);
+      setLogDetails('');
+      // Re-fetch activities
+      const { data } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false });
+      if (data) setActivities(data as any[]);
+      onNotify(`Logged ${logAction}: ${logDetails.trim()}`);
+    } else {
+      onNotify(`Failed to log activity: ${error.message}`);
     }
-  };
-
-  // Handle removing tag
-  const handleRemoveTag = async (tagToRemove: string) => {
-    const currentTags = lead.tags || [];
-    const updated = currentTags.filter((t) => t !== tagToRemove);
-    await onUpdateLead(lead.id, { tags: updated });
-    onNotify(`Removed tag "${tagToRemove}"`);
   };
 
   // Handle logging activity / meeting
@@ -223,7 +233,6 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
 
       // 2. If meeting, also schedule in tasks_meetings
       if (type === 'meeting' && meetingDate) {
-        // Sanitize assigned_to — only pass real UUIDs, never mock broker IDs
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const safeAssignedTo = lead.assignedTo && UUID_REGEX.test(lead.assignedTo.trim())
           ? lead.assignedTo.trim()
@@ -371,21 +380,6 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
               </div>
 
               <div className="flex items-center gap-2.5 text-[#0b1c30]">
-                <div className="w-8 h-8 rounded-lg bg-[#99efe5]/60 text-[#006f67] flex items-center justify-center shrink-0">
-                  <Phone className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[11px] text-slate-400 block">Phone Number</span>
-                  <a
-                    href={`tel:${lead.phone}`}
-                    className="font-medium hover:text-[#005d42] truncate block"
-                  >
-                    {lead.phone || 'No phone provided'}
-                  </a>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 text-[#0b1c30]">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <DollarSign className="w-4 h-4" />
                 </div>
@@ -395,6 +389,47 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                     {lead.budgetFormatted || '$0'}
                   </span>
                 </div>
+              </div>
+
+              {/* Phone Number with prominent WhatsApp button next to it */}
+              <div className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#99efe5]/60 text-[#006f67] flex items-center justify-center shrink-0">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[11px] text-slate-400 block">Phone Number</span>
+                    <a
+                      href={lead.phone ? `tel:${lead.phone}` : undefined}
+                      className="font-medium hover:text-[#005d42] truncate block"
+                    >
+                      {lead.phone || 'No phone provided'}
+                    </a>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!lead.phone) return;
+                    const agentName =
+                      currentUser?.full_name ||
+                      user?.user_metadata?.full_name ||
+                      user?.email?.split('@')[0] ||
+                      'your agent';
+                    openWhatsAppChat(lead.phone, lead.name, agentName);
+                  }}
+                  disabled={!lead.phone}
+                  className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 ${
+                    lead.phone
+                      ? 'bg-[#25D366] hover:bg-[#20ba59] active:bg-[#1da850] text-white hover:shadow-md cursor-pointer'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-70'
+                  }`}
+                  title={lead.phone ? `Message ${lead.name} on WhatsApp` : 'No phone number provided'}
+                >
+                  <WhatsAppIcon className="w-4 h-4 fill-current shrink-0" />
+                  <span>Message on WhatsApp</span>
+                </button>
               </div>
 
               <div className="flex items-center gap-2.5 text-[#0b1c30]">
@@ -411,6 +446,159 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Buyer Requirements Card */}
+          {(lead.requirementType || lead.requirementSize || lead.preferredArea) && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col gap-3">
+              <h3 className="text-xs font-bold text-[#6e7a73] uppercase tracking-wider">
+                Buyer Requirements
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {lead.requirementType && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#e5eeff] text-[#0b1c30] px-3 py-1.5 rounded-lg border border-slate-200/60">
+                    <Building className="w-3.5 h-3.5 text-[#005d42]" />
+                    {lead.requirementType}
+                  </span>
+                )}
+                {lead.requirementSize && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#f0fdf4] text-[#005d42] px-3 py-1.5 rounded-lg border border-[#bbf7d0]">
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    {lead.requirementSize} {lead.requirementUnit || ''}
+                  </span>
+                )}
+                {lead.preferredArea && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#eff4ff] text-[#0b1c30] px-3 py-1.5 rounded-lg border border-slate-200/60">
+                    <MapPin className="w-3.5 h-3.5 text-[#005d42]" />
+                    {lead.preferredArea}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 italic">
+                Looking for:
+                {lead.requirementSize ? ` ${lead.requirementSize} ${lead.requirementUnit || ''}` : ''}
+                {lead.requirementType ? ` ${lead.requirementType}` : ''}
+                {lead.preferredArea ? ` in ${lead.preferredArea}` : ''}
+              </p>
+            </div>
+          )}
+
+          {/* Tags & Segmentation Section */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col gap-3">
+            <h3 className="text-xs font-bold text-[#6e7a73] uppercase tracking-wider flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5" />
+              Tags &amp; Segmentation
+            </h3>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {(lead.tags || []).length === 0 && (
+                <span className="text-xs text-slate-400 italic">No tags assigned</span>
+              )}
+
+              {(lead.tags || []).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full"
+                >
+                  <span>{tag}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateLead(lead.id, {
+                        tags: (lead.tags || []).filter((t) => t !== tag),
+                      })
+                    }
+                    className="hover:text-blue-900 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newTag.trim()) return;
+                onUpdateLead(lead.id, {
+                  tags: [...(lead.tags || []), newTag.trim()],
+                });
+                setNewTag('');
+              }}
+              className="flex items-center gap-2 mt-1"
+            >
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                placeholder="Add a new tag..."
+                className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/20"
+              />
+              <button
+                type="submit"
+                className="bg-[#005d42] hover:bg-[#004d37] text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-xs"
+              >
+                Add Tag
+              </button>
+            </form>
+          </div>
+
+          {/* Activity Timeline */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col gap-4">
+            <h3 className="text-xs font-bold text-[#6e7a73] uppercase tracking-wider flex items-center gap-1.5">
+              <ActivityIcon className="w-3.5 h-3.5" />
+              Activity Timeline
+            </h3>
+
+            {/* Timeline List */}
+            <div className="flex flex-col gap-3 max-h-48 overflow-y-auto pr-1">
+              {activities.length === 0 ? (
+                <span className="text-xs text-slate-400 italic">No activities logged yet.</span>
+              ) : (
+                activities.map((act) => (
+                  <div key={act.id} className="flex gap-2.5 text-xs border-l-2 border-[#005d42]/20 pl-2.5 py-0.5">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-[#0b1c30] capitalize">{act.type || (act as any).action || 'Activity'}</span>
+                      <span className="text-slate-500">{act.description || (act as any).details || 'No details'}</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(act.created_at).toLocaleDateString()}{' '}
+                        {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Log New Activity Form */}
+            <form onSubmit={handleLogActivity} className="flex flex-col gap-2 pt-3 border-t border-slate-100">
+              <div className="flex gap-2">
+                <select
+                  value={logAction}
+                  onChange={(e) => setLogAction(e.target.value)}
+                  className="bg-[#f8fafc] border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-[#0b1c30] focus:outline-none cursor-pointer"
+                >
+                  <option value="call">📞 Call</option>
+                  <option value="meeting">🤝 Meeting</option>
+                  <option value="note">📝 Note</option>
+                  <option value="whatsapp">💬 WhatsApp</option>
+                </select>
+                <input
+                  required
+                  type="text"
+                  value={logDetails}
+                  onChange={(e) => setLogDetails(e.target.value)}
+                  placeholder="Add details (e.g., Discussed 10 Marla plot price)..."
+                  className="flex-1 bg-[#f8fafc] border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#005d42]/20"
+                />
+              </div>
+              <button
+                type="submit"
+                className="bg-[#005d42] hover:bg-[#004d37] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-xs self-end cursor-pointer"
+              >
+                Log Activity
+              </button>
+            </form>
           </div>
 
           {/* Step 4 Auto-Mapper: Top 3 Property Matches */}
@@ -490,77 +678,6 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Tags Section */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-[#6e7a73] uppercase tracking-wider flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5" />
-                Tags &amp; Segmentation
-              </h3>
-              {!isAddingTag && (
-                <button
-                  type="button"
-                  onClick={() => setIsAddingTag(true)}
-                  className="text-xs font-semibold text-[#005d42] hover:text-[#004d37] flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Tag
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {(lead.tags || []).length === 0 && !isAddingTag && (
-                <span className="text-xs text-slate-400 italic">No tags assigned</span>
-              )}
-
-              {(lead.tags || []).map((t) => (
-                <span
-                  key={t}
-                  className="inline-flex items-center gap-1 text-xs font-semibold bg-[#e5eeff] text-[#0b1c30] px-2.5 py-1 rounded-lg border border-slate-200/60"
-                >
-                  {t}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(t)}
-                    className="hover:text-red-600 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-
-              {isAddingTag && (
-                <form onSubmit={handleAddTag} className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
-                    placeholder="e.g. VIP, Cash Buyer"
-                    autoFocus
-                    className="bg-white border border-[#005d42] rounded-lg px-2.5 py-1 text-xs text-[#0b1c30] focus:outline-none w-32"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-[#005d42] text-white px-2 py-1 rounded-lg text-xs font-medium cursor-pointer"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingTag(false);
-                      setNewTagInput('');
-                    }}
-                    className="text-slate-400 hover:text-slate-600 p-1"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </form>
-              )}
-            </div>
           </div>
 
           {/* Quick Action Buttons */}
@@ -761,7 +878,7 @@ export const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                       </div>
                       <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-xs">
                         <div className="flex items-center justify-between text-[11px] mb-1">
-                          <span className="font-bold text-[#0b1c30]">{act.title}</span>
+                          <span className="font-bold text-[#0b1c30]">{act.title || `Logged ${act.type}`}</span>
                           <span className="text-slate-400 tabular-nums">{dateStr}</span>
                         </div>
                         {act.description && (

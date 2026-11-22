@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Bolt, TrendingUp, BarChart2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../lib/useAuth';
+import { formatMoney, useCurrency } from '../../config/regional';
 
 type TimeRange = '6M' | 'YTD' | '1Y';
 
@@ -16,6 +17,7 @@ interface MonthDataPoint {
 
 export const RevenueVelocityChart: React.FC = () => {
   const { orgId } = useAuth();
+  const [currency] = useCurrency();
   const [range, setRange] = useState<TimeRange>('YTD');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,25 +106,14 @@ export const RevenueVelocityChart: React.FC = () => {
     });
 
     months.forEach((m) => {
-      m.formatted = m.value >= 1 ? `$${m.value.toFixed(1)}M` : `$${Math.round(m.value * 1000)}k`;
+      m.formatted = formatMoney(m.value * 1_000_000, { compact: true, currency });
     });
 
     const gci = totalClosedBudget * 0.025; // 2.5% standard commission
     const avgDeal = totalTransactions > 0 ? totalClosedBudget / totalTransactions : 0;
 
-    const gciFormatted =
-      gci >= 1_000_000
-        ? `$${(gci / 1_000_000).toFixed(2)}M`
-        : gci > 0
-        ? `$${Math.round(gci / 1000)}k`
-        : '$0';
-
-    const avgDealFormatted =
-      avgDeal >= 1_000_000
-        ? `$${(avgDeal / 1_000_000).toFixed(1)}M`
-        : avgDeal > 0
-        ? `$${Math.round(avgDeal / 1000)}k`
-        : '—';
+    const gciFormatted = formatMoney(gci, { compact: true, currency });
+    const avgDealFormatted = avgDeal > 0 ? formatMoney(avgDeal, { compact: true, currency }) : '—';
 
     return {
       points: months,
@@ -131,7 +122,7 @@ export const RevenueVelocityChart: React.FC = () => {
       gciFormatted,
       avgDealFormatted,
     };
-  }, [rawLeads, range]);
+  }, [rawLeads, range, currency]);
 
   const points = dataset.points;
   const activeIdx =

@@ -30,6 +30,7 @@ import { PropertyFormModal } from '../Modals/PropertyFormModal';
 import { LeadPickerModal } from '../Modals/LeadPickerModal';
 import { supabase } from '../../lib/supabaseClient';
 import { formatMoney, useCurrency } from '../../config/regional';
+import { useSubscription } from '../../lib/hooks/useSubscription';
 
 interface PropertyListingPageProps {
   properties: Property[];
@@ -66,11 +67,14 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
   onRefreshLeads,
 }) => {
   const [currency] = useCurrency();
+  const { isLocked } = useSubscription(orgId ?? null);
   const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [priceFilter, setPriceFilter] = useState('any');
   const [bedsFilter, setBedsFilter] = useState('any');
+  const [propStartDate, setPropStartDate] = useState('');
+  const [propEndDate, setPropEndDate] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -119,6 +123,18 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
       if ((prop.beds || 0) < minBeds) return false;
     }
 
+    if (propStartDate) {
+      const propDate = (prop as any).createdAt || (prop as any).created_at;
+      if (!propDate || new Date(propDate) < new Date(propStartDate)) return false;
+    }
+
+    if (propEndDate) {
+      const propDate = (prop as any).createdAt || (prop as any).created_at;
+      const end = new Date(propEndDate);
+      end.setHours(23, 59, 59, 999);
+      if (!propDate || new Date(propDate) > end) return false;
+    }
+
     return true;
   });
 
@@ -128,6 +144,8 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
     setTypeFilter('all');
     setPriceFilter('any');
     setBedsFilter('any');
+    setPropStartDate('');
+    setPropEndDate('');
     setCurrentPage(1);
   };
 
@@ -138,7 +156,7 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
       p.mlsId,
       p.title,
       p.location || p.address || '',
-      p.city || 'Beverly Hills',
+      p.city || '',
       p.priceFormatted,
       p.status,
       p.type,
@@ -175,6 +193,10 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
   };
 
   const handleAddClick = () => {
+    if (isLocked) {
+      onNotify('Please upgrade your plan to add records');
+      return;
+    }
     setEditingProperty(null);
     setFormModalOpen(true);
   };
@@ -332,7 +354,7 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
             <span className="text-[#bdc9c1]" aria-hidden="true">
               ·
             </span>
-            <span className="text-[#3e4943]">Beverly Hills &amp; Greater LA</span>
+            <span className="text-[#3e4943]">Active Portfolio</span>
           </div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-[34px] text-[#0b1c30] tracking-tight leading-tight">
             Property Inventory &amp; Listings
@@ -454,6 +476,34 @@ export const PropertyListingPage: React.FC<PropertyListingPageProps> = ({
               <option value="5">5+ Beds</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6e7a73] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* Date Filter: From */}
+          <div className="flex items-center gap-1.5 bg-[#eff4ff] px-3 py-1.5 rounded-lg">
+            <span className="text-[11px] font-semibold text-[#6e7a73]">From:</span>
+            <input
+              type="date"
+              value={propStartDate}
+              onChange={(e) => {
+                setPropStartDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="bg-transparent text-[12px] text-[#0b1c30] font-medium outline-none cursor-pointer"
+            />
+          </div>
+
+          {/* Date Filter: To */}
+          <div className="flex items-center gap-1.5 bg-[#eff4ff] px-3 py-1.5 rounded-lg">
+            <span className="text-[11px] font-semibold text-[#6e7a73]">To:</span>
+            <input
+              type="date"
+              value={propEndDate}
+              onChange={(e) => {
+                setPropEndDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="bg-transparent text-[12px] text-[#0b1c30] font-medium outline-none cursor-pointer"
+            />
           </div>
 
           {/* Grid / List View Switcher */}

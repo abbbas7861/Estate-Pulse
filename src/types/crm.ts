@@ -1,13 +1,30 @@
 export type PageView =
   | 'dashboard'
+  | 'ai-agent'
   | 'leads'
+  | 'inquiries'
+  | 'leads-assigned'
+  | 'leads-awareness'
+  | 'leads-contacted'
+  | 'leads-touring'
+  | 'leads-escrow'
+  | 'leads-closed'
   | 'properties'
+  | 'expenses'
+  | 'installments'
+  | 'documents'
+  | 'maps'
+  | 'notes'
+  | 'commissions'
   | 'team'
   | 'analytics'
   | 'billing'
+  | 'deals'
+  | 'visits'
   | 'landing'
   | 'terms'
-  | 'privacy';
+  | 'privacy'
+  | 'super-admin';
 
 export type LeadStage = 'assigned' | 'awareness' | 'contacted' | 'touring' | 'negotiation' | string;
 
@@ -18,21 +35,6 @@ export interface LeadStageItem {
   order_index: number;
   color?: string;
   org_id?: string | null;
-}
-
-export interface Broker {
-  id: string;
-  name: string;
-  role: string;
-  initials: string;
-  avatarUrl: string;
-  email: string;
-  phone: string;
-  dealsClosed: number;
-  volumeClosed: string;
-  targetPct: number;
-  activeListings: number;
-  responseTime: string;
 }
 
 export interface Lead {
@@ -63,6 +65,12 @@ export interface Lead {
   lastActivityAt?: string;
   daysSinceLastActivity?: number;
   isDuplicate?: boolean;
+  website_message?: string;
+  // Buyer requirement fields
+  requirementType?: string;   // House, Plot, Shop, Building, Penthouse, Rent, Other
+  requirementSize?: number;
+  requirementUnit?: string;   // Marla, Kanal, Sq Ft
+  preferredArea?: string;
 }
 
 export interface Activity {
@@ -146,6 +154,10 @@ export interface Property {
   showingsCount?: number;
   isFavorite?: boolean;
   description?: string;
+  // Owner / seller information
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerCnic?: string;
 }
 
 export interface PropertyMatch {
@@ -162,16 +174,6 @@ export interface PropertyMatch {
   baths: number;
   sqft: number;
   image_url: string;
-}
-
-export interface FeedActivity {
-  id: string;
-  type: 'escrow' | 'counter' | 'showing' | 'new_lead';
-  title: string;
-  propertyTitle: string;
-  amountFormatted: string;
-  timestamp: string;
-  brokerName: string;
 }
 
 // ─── Step 5 Analytics & Team Performance Types ─────────────────────────────
@@ -242,4 +244,14 @@ export interface MonthlyTrendItem {
   wonVolume: number;
   wonVolumeFormatted: string;
 }
+
+export interface TeamInvite {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  status: 'pending' | 'accepted' | 'cancelled';
+  created_at: string;
+}
+
 

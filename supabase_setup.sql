@@ -102,47 +102,7 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO postgres, anon, authenticated, ser
 
 -- 6. Auto-create org + user row when someone signs up
 --    (triggered by supabase.auth.signUp with metadata org_name)
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER 
-LANGUAGE plpgsql 
-SECURITY DEFINER 
-SET search_path = public
-AS $$
-DECLARE
-  new_org_id UUID;
-  org_name   TEXT;
-BEGIN
-  -- Get org name from signup metadata, fallback to email prefix
-  org_name := COALESCE(
-    NEW.raw_user_meta_data->>'org_name',
-    split_part(NEW.email, '@', 1) || '''s Brokerage'
-  );
 
-  -- Create the organization
-  INSERT INTO public.organizations (name)
-  VALUES (org_name)
-  RETURNING id INTO new_org_id;
-
-  -- Create the user row linked to the org
-  INSERT INTO public.users (id, org_id, email, full_name)
-  VALUES (
-    NEW.id,
-    new_org_id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    org_id = EXCLUDED.org_id,
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name;
-
-  RETURN NEW;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE WARNING 'handle_new_user failed: %', SQLERRM;
-    RETURN NEW;
-END;
-$$;
 
 -- Attach the trigger to auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

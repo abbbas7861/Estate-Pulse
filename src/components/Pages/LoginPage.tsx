@@ -4,7 +4,8 @@
  */
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Building2, Eye, EyeOff, Loader2, AlertCircle, TrendingUp } from 'lucide-react';
+import { Logo } from '../UI/Logo';
+import { Eye, EyeOff, Loader2, AlertCircle, TrendingUp } from 'lucide-react';
 
 interface Props {
   onGoToSignup: () => void;
@@ -43,8 +44,8 @@ export function LoginPage({ onGoToSignup }: Props) {
       <div className="relative w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#005d42] to-[#047857] rounded-2xl shadow-lg shadow-[#005d42]/40 mb-4">
-            <Building2 className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <Logo size={64} className="rounded-2xl shadow-lg shadow-[#005d42]/40" />
           </div>
           <h1 className="font-display font-bold text-3xl text-white tracking-tight">EstatePulse</h1>
           <p className="text-[#97f5cc]/70 text-sm mt-1 font-medium">Brokerage Intelligence Platform</p>

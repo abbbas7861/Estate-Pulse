@@ -65,6 +65,10 @@ function mapRowToLead(row: any): Lead {
     assignedTo: row.assigned_to || row.broker_id || null,
     lastActivityAt: row.last_activity_at || row.created_at,
     daysSinceLastActivity: daysSince,
+    requirementType: row.requirement_type || undefined,
+    requirementSize: row.requirement_size ? Number(row.requirement_size) : undefined,
+    requirementUnit: row.requirement_unit || undefined,
+    preferredArea: row.preferred_area || undefined,
   };
 }
 
@@ -342,6 +346,10 @@ export function useLeads(orgId: string | null) {
         assigned_to: finalAssignedTo,
         tags: data.tags || [],
         last_activity_at: new Date().toISOString(),
+        requirement_type: data.requirementType || null,
+        requirement_size: data.requirementSize ?? null,
+        requirement_unit: data.requirementUnit || null,
+        preferred_area: data.preferredArea || null,
       };
 
       const { data: inserted, error: insertErr } = await supabase
@@ -422,6 +430,10 @@ export function useLeads(orgId: string | null) {
       }
       if (updates.brokerName !== undefined) dbPayload.broker_name = updates.brokerName;
       if (updates.tags !== undefined) dbPayload.tags = updates.tags;
+      if (updates.requirementType !== undefined) dbPayload.requirement_type = updates.requirementType;
+      if (updates.requirementSize !== undefined) dbPayload.requirement_size = updates.requirementSize;
+      if (updates.requirementUnit !== undefined) dbPayload.requirement_unit = updates.requirementUnit;
+      if (updates.preferredArea !== undefined) dbPayload.preferred_area = updates.preferredArea;
 
       const { error: updateErr } = await supabase
         .from('leads')

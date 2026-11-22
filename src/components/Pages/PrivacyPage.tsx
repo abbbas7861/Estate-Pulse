@@ -83,7 +83,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
               5. Data Retention &amp; Deletion
             </h2>
             <p>
-              You have the right to request full export or deletion of your tenant organization&rsquo;s database records upon terminating your subscription by contacting privacy@estatepulse.io.
+              You have the right to request full export or deletion of your tenant organization&rsquo;s database records upon terminating your subscription by contacting estatepulsesupport@gmail.com.
             </p>
           </section>
         </div>

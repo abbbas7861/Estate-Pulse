@@ -107,9 +107,9 @@ export const REGION: RegionConfig = {
   support: { email: ENV_SUPPORT_EMAIL, phone: ENV_SUPPORT_PHONE },
 };
 
-// ─── Supported Global Currencies (PKR, USD, AED) ──────────────────────────────
+// ─── Supported Global Currencies ─────────────────────────────────────────────
 
-export type SupportedCurrency = 'PKR' | 'USD' | 'AED';
+export type SupportedCurrency = 'PKR' | 'USD' | 'AED' | 'EUR' | 'GBP';
 
 export interface CurrencyDetails {
   code: SupportedCurrency;
@@ -148,6 +148,24 @@ export const CURRENCY_CONFIGS: Record<SupportedCurrency, CurrencyDetails> = {
     compactStyle: 'western',
     label: 'AED د.إ',
     name: 'UAE Dirham',
+  },
+  EUR: {
+    code: 'EUR',
+    symbol: '€',
+    symbolGap: '',
+    locale: 'de-DE',
+    compactStyle: 'western',
+    label: '€ EUR',
+    name: 'Euro',
+  },
+  GBP: {
+    code: 'GBP',
+    symbol: '£',
+    symbolGap: '',
+    locale: 'en-GB',
+    compactStyle: 'western',
+    label: '£ GBP',
+    name: 'British Pound',
   },
 };
 
@@ -205,8 +223,8 @@ function trim2(n: number): string {
 }
 
 /**
- * Dynamically formats prices based on the provided or active currency (PKR, USD, AED)
- * using localized number formatting and compact notation (Lakh/Crore for PKR, K/M/B for USD/AED).
+ * Dynamically formats prices based on the provided or active currency (PKR, USD, AED, EUR, GBP)
+ * using localized number formatting and compact notation (Lakh/Crore for PKR, K/M/B for others).
  */
 export function formatMoney(
   amount: number | null | undefined,
@@ -215,10 +233,29 @@ export function formatMoney(
   const n = Number(amount) || 0;
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
-  
+
   const curCode = opts.currency || getActiveCurrency();
   const cur = CURRENCY_CONFIGS[curCode] || CURRENCY_CONFIGS.PKR;
   const sym = cur.symbol + cur.symbolGap;
+
+  // EUR and GBP: use native Intl currency formatting
+  if (curCode === 'EUR' || curCode === 'GBP') {
+    const locale = curCode === 'EUR' ? 'de-DE' : 'en-GB';
+    if (opts.compact) {
+      if (abs >= 1e9) return `${sign}${sym}${trim2(abs / 1e9)}B`;
+      if (abs >= 1e6) return `${sign}${sym}${trim2(abs / 1e6)}M`;
+      if (abs >= 1e3) return `${sign}${sym}${trim2(abs / 1e3)}K`;
+    }
+    try {
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: curCode,
+        maximumFractionDigits: 0,
+      }).format(n);
+    } catch {
+      return `${sign}${sym}${abs.toLocaleString(locale, { maximumFractionDigits: 0 })}`;
+    }
+  }
 
   if (opts.compact) {
     if (cur.compactStyle === 'south-asian') {

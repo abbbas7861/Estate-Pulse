@@ -13,6 +13,15 @@ import { X, Plus, Trash2, Sparkles } from 'lucide-react';
 import { Property, PropertyStatus, PropertyType, PropertyAmenity } from '../../types/crm';
 import { PropertyImageUpload } from '../Upload/PropertyImageUpload';
 import { REGION, AreaUnit, areaUnitLabel, convertArea, fromSqft, toSqft } from '../../config/regional';
+import { supabase } from '../../lib/supabaseClient';
+
+declare module '../../types/crm' {
+  interface Property {
+    virtualTourUrl?: string | null;
+    virtual_tour_url?: string | null;
+    tour_status?: 'processing' | 'ready' | string | null;
+  }
+}
 
 interface PropertyFormModalProps {
   isOpen: boolean;
@@ -57,6 +66,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [sqft, setSqft] = useState('');
   const [areaUnit, setAreaUnit] = useState<AreaUnit>(REGION.areaUnit);
   const [description, setDescription] = useState('');
+  const [virtualTourUrl, setVirtualTourUrl] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [amenities, setAmenities] = useState<PropertyAmenity[]>([]);
 
@@ -64,6 +74,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [newGroup, setNewGroup] = useState('');
   const [newSubGroup, setNewSubGroup] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Owner / seller fields
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerCnic, setOwnerCnic] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -78,8 +93,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         setSqft(property.sqft ? String(fromSqft(property.sqft, REGION.areaUnit)) : '');
         setAreaUnit(REGION.areaUnit);
         setDescription(property.description || '');
+        setVirtualTourUrl(property.virtualTourUrl || property.virtual_tour_url || '');
         setImages(property.images || (property.imageUrl ? [property.imageUrl] : []));
         setAmenities(property.amenities || []);
+        setOwnerName(property.ownerName || '');
+        setOwnerPhone(property.ownerPhone || '');
+        setOwnerCnic(property.ownerCnic || '');
       } else {
         // Clean, empty state — no pre-filled fake data
         setTitle('');
@@ -92,10 +111,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         setSqft('');
         setAreaUnit(REGION.areaUnit);
         setDescription('');
+        setVirtualTourUrl('');
         setImages([]);
         setAmenities([]);
         setNewGroup('');
         setNewSubGroup('');
+        setOwnerName('');
+        setOwnerPhone('');
+        setOwnerCnic('');
       }
     }
   }, [property, isOpen]);
@@ -134,6 +157,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     const payload: Partial<Property> = {
       title: title.trim(),
       description: description.trim(),
+      virtualTourUrl: virtualTourUrl.trim() || undefined,
+      virtual_tour_url: virtualTourUrl.trim() || undefined,
       price: numPrice,
       location: location.trim(),
       address: location.trim(),
@@ -144,6 +169,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       status,
       images,
       amenities,
+      ownerName: ownerName.trim() || undefined,
+      ownerPhone: ownerPhone.trim() || undefined,
+      ownerCnic: ownerCnic.trim() || undefined,
     };
 
     await onSubmit(payload);
@@ -338,6 +366,19 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 resize-none leading-relaxed"
               />
             </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
+                YouTube Virtual Tour Link
+              </label>
+              <input
+                type="url"
+                value={virtualTourUrl}
+                onChange={(e) => setVirtualTourUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30"
+              />
+            </div>
           </div>
 
           {/* Dynamic Amenities System */}
@@ -411,6 +452,59 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   <Plus className="w-3 h-3" />
                   Add
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Owner / Seller Information */}
+          <div className="bg-[#f8fafc] p-4 rounded-2xl border border-slate-200 flex flex-col gap-4">
+            <div>
+              <h3 className="text-xs font-bold text-[#005d42] uppercase tracking-wider">
+                Owner / Seller Information
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Optional — used internally for direct contact and verification.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
+                  Owner Name
+                </label>
+                <input
+                  type="text"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  placeholder="e.g. Ahmed Raza"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
+                  Owner Phone
+                </label>
+                <input
+                  type="text"
+                  value={ownerPhone}
+                  onChange={(e) => setOwnerPhone(e.target.value)}
+                  placeholder="e.g. +92 300 1234567"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#6e7a73] uppercase tracking-wider mb-1">
+                  Owner CNIC <span className="font-normal normal-case text-slate-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={ownerCnic}
+                  onChange={(e) => setOwnerCnic(e.target.value)}
+                  placeholder="e.g. 42201-1234567-9"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#005d42]/30 tabular-nums"
+                />
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { TeamChatModal } from '../Modals/TeamChatModal';
 import { PageView } from '../../types/crm';
 
 interface AppLayoutProps {
@@ -11,6 +12,7 @@ interface AppLayoutProps {
   onGlobalSearchChange: (val: string) => void;
   onOpenNewTransaction: () => void;
   onOpenSettingsModal: (tab: 'support' | 'settings') => void;
+  onOpenProfileSettings?: () => void;
   children: React.ReactNode;
 }
 
@@ -22,12 +24,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onGlobalSearchChange,
   onOpenNewTransaction,
   onOpenSettingsModal,
+  onOpenProfileSettings,
   children,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">
       <Sidebar
         currentPage={currentPage}
         onNavigate={onNavigate}
@@ -36,17 +40,20 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onCloseMobile={() => setMobileMenuOpen(false)}
         onOpenSettingsModal={onOpenSettingsModal}
       />
-      <div className="lg:pl-64 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header
           globalSearch={globalSearch}
           onGlobalSearchChange={onGlobalSearchChange}
           onOpenNewTransaction={onOpenNewTransaction}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenProfileSettings={onOpenProfileSettings}
+          onOpenChat={() => setIsChatOpen(true)}
         />
-        <main className="relative pt-16 flex-1 bg-[#f8f9ff]">
-          <div className="w-full max-w-[1600px] mx-auto">{children}</div>
+        <main className="flex-1 pt-16 overflow-y-auto bg-[var(--bg-main)] text-[var(--text-main)]">
+          {children}
         </main>
       </div>
+      <TeamChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 };

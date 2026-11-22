@@ -3,15 +3,14 @@ import {
   ArrowRight,
   Calendar,
   CalendarCheck,
-  CheckCircle2,
   ChevronDown,
-  Clock,
   Contact,
-  DollarSign,
   Download,
+  Lock,
   MoreVertical,
   Phone,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
   UserCheck,
 } from 'lucide-react';
@@ -21,6 +20,8 @@ import { useOrgUsers } from '../../lib/hooks/useOrgUsers';
 import { useAuth } from '../../lib/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import { PageView } from '../../types/crm';
+import { useSubscription } from '../../lib/hooks/useSubscription';
+import { formatMoney, useCurrency } from '../../config/regional';
 
 interface DashboardPageProps {
   leads: any[];
@@ -47,32 +48,148 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onExportReport,
   onNotify,
 }) => {
-  const { user } = useAuth();
+  const { user, orgId: authOrgId, orgName } = useAuth();
+  const effectiveOrgId = orgId || authOrgId;
+  const { isLocked } = useSubscription(orgId ?? null);
+  const locked = isLocked;
+  const [currency] = useCurrency();
   const [dateRangeIdx, setDateRangeIdx] = useState(0);
   const [showingConfirmed, setShowingConfirmed] = useState(false);
-  const [avgEscrowDays, setAvgEscrowDays] = useState<string>('—');
   const { users: orgUsers } = useOrgUsers(orgId);
+
+  // Business Health & Net Profit State
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalPendingRevenue, setTotalPendingRevenue] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(0);
+
+  useEffect(() => {
+    if (!effectiveOrgId) return;
+
+    let isMounted = true;
+
+    async function fetchFinancialData() {
+      try {
+        const [commissionsRes, expensesRes] = await Promise.all([
+          supabase
+            .from('commissions')
+            .select('broker_share, status')
+            .eq('org_id', effectiveOrgId),
+          supabase
+            .from('expenses')
+            .select('amount')
+            .eq('org_id', effectiveOrgId),
+        ]);
+
+        if (commissionsRes.data && isMounted) {
+          let received = 0;
+          let pending = 0;
+          commissionsRes.data.forEach((row: { broker_share?: number | null; status?: string | null }) => {
+            const share = Number(row.broker_share) || 0;
+            const status = (row.status || '').trim().toLowerCase();
+            if (status === 'received') {
+              received += share;
+            } else if (status === 'pending') {
+              pending += share;
+            }
+          });
+          setTotalRevenue(received);
+          setTotalPendingRevenue(pending);
+        }
+
+        if (expensesRes.data && isMounted) {
+          const expensesSum = expensesRes.data.reduce((sum: number, row: { amount?: number | null }) => {
+            return sum + (Number(row.amount) || 0);
+          }, 0);
+          setTotalExpenses(expensesSum);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch financial health data:', err);
+      }
+    }
+
+    fetchFinancialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveOrgId]);
 
   const cycleDateRange = () => {
     setDateRangeIdx((prev) => (prev + 1) % DATE_RANGES.length);
   };
 
-  // FIX #8: Real user greeting
-  const greetingName =
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'there';
+  const [profileName, setProfileName] = useState<string | null>(null);
 
-  // FIX #10: Real assigned count
+  useEffect(() => {
+    const activeUserId = userId || user?.id;
+    if (!activeUserId) return;
+
+    if (user?.user_metadata?.full_name) {
+      setProfileName(user.user_metadata.full_name);
+      return;
+    }
+
+    async function fetchUserProfile() {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', activeUserId)
+          .maybeSingle();
+
+        if (!error && data?.full_name) {
+          setProfileName(data.full_name);
+        }
+      } catch (err) {
+        console.warn('Could not fetch user profile full_name', err);
+      }
+    }
+
+    fetchUserProfile();
+  }, [userId, user?.id, user?.user_metadata?.full_name]);
+
+  // Helper: returns true if the string looks like an email address
+  const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  // Resolve a display name: prefer full_name if it is NOT an email, else 'Partner'
+  const resolveDisplayName = (name: string | null | undefined): string => {
+    if (!name || isEmail(name)) return 'Partner';
+    return name;
+  };
+
+  const greetingName =
+    resolveDisplayName(profileName) !== 'Partner'
+      ? resolveDisplayName(profileName)
+      : resolveDisplayName(user?.user_metadata?.full_name) !== 'Partner'
+      ? resolveDisplayName(user?.user_metadata?.full_name)
+      : 'Partner';
+
+  // 1. Total Pipeline Value: Sum budget of all leads regardless of stage
+  const totalPipelineValue = useMemo(() => {
+    return (leads || []).reduce((sum, l) => {
+      const b = Number(l.budget ?? l.budgetAmount ?? 0);
+      return sum + (isNaN(b) ? 0 : b);
+    }, 0);
+  }, [leads]);
+
+  const totalPipelineValueFormatted = useMemo(() => {
+    return formatMoney(totalPipelineValue, { compact: true, currency });
+  }, [totalPipelineValue, currency]);
+
+  // 2. Assigned Leads: Count leads where assigned_to is NOT null / empty
   const assignedLeadsCount = useMemo(() => {
     return (leads || []).filter((l) => {
-      const assigned = l.assigned_to || l.assignedTo;
-      const broker = l.broker_name || l.brokerName;
-      return (assigned && assigned !== 'unassigned') || (broker && broker !== 'Unassigned');
+      const assigned = l.assigned_to ?? l.assignedTo;
+      return assigned !== null && assigned !== undefined && assigned !== '' && assigned !== 'unassigned';
     }).length;
   }, [leads]);
 
-  // FIX #12: Real Pending Escrow computations
+  // 3. Active Listings: Count properties where status is 'Active Listing'
+  const activeListingsCount = useMemo(() => {
+    return (properties || []).filter((p) => p.status === 'Active Listing').length;
+  }, [properties]);
+
+  // Pending Escrow computations
   const pendingEscrowProperties = useMemo(() => {
     return (properties || []).filter(
       (p) => p.status === 'Pending Escrow' || p.status === 'Pending'
@@ -84,14 +201,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }, [pendingEscrowProperties]);
 
   const pendingEscrowValueFormatted = useMemo(() => {
-    if (pendingEscrowValue >= 1_000_000) {
-      return `$${(pendingEscrowValue / 1_000_000).toFixed(1)}M`;
-    }
-    if (pendingEscrowValue > 0) {
-      return `$${(pendingEscrowValue / 1_000).toFixed(0)}k`;
-    }
-    return '$0';
-  }, [pendingEscrowValue]);
+    return formatMoney(pendingEscrowValue, { compact: true, currency });
+  }, [pendingEscrowValue, currency]);
 
   const pendingCount = pendingEscrowProperties.length;
   const escrowVelocity =
@@ -99,72 +210,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ? `${((pendingCount / properties.length) * 100).toFixed(1)}%`
       : '0.0%';
 
-  // FIX #13: Real Avg Escrow Close computation
-  useEffect(() => {
-    async function computeAvgEscrow() {
-      if (!orgId) {
-        setAvgEscrowDays('—');
-        return;
-      }
-
-      try {
-        const { data: closedActs, error } = await supabase
-          .from('activities')
-          .select('created_at, lead_id, action')
-          .eq('org_id', orgId)
-          .eq('action', 'closed');
-
-        if (error || !closedActs || closedActs.length === 0) {
-          setAvgEscrowDays('—');
-          return;
-        }
-
-        const leadIds = closedActs.map((a: any) => a.lead_id).filter(Boolean);
-        if (leadIds.length === 0) {
-          setAvgEscrowDays('—');
-          return;
-        }
-
-        const { data: closedLeads } = await supabase
-          .from('leads')
-          .select('id, created_at')
-          .in('id', leadIds);
-
-        if (!closedLeads || closedLeads.length === 0) {
-          setAvgEscrowDays('—');
-          return;
-        }
-
-        const leadsMap = new Map(closedLeads.map((l: any) => [l.id, new Date(l.created_at).getTime()]));
-
-        let totalDays = 0;
-        let counted = 0;
-
-        closedActs.forEach((act: any) => {
-          const leadCreated = leadsMap.get(act.lead_id);
-          if (leadCreated) {
-            const actDate = new Date(act.created_at).getTime();
-            const days = Math.max(0, (actDate - leadCreated) / (1000 * 60 * 60 * 24));
-            totalDays += days;
-            counted += 1;
-          }
-        });
-
-        if (counted > 0) {
-          const avg = (totalDays / counted).toFixed(1);
-          setAvgEscrowDays(`${avg}d`);
-        } else {
-          setAvgEscrowDays('—');
-        }
-      } catch {
-        setAvgEscrowDays('—');
-      }
-    }
-
-    computeAvgEscrow();
-  }, [orgId]);
-
-  // FIX #14: Urgent Follow-Up from real leads
+  // 2. Urgent Follow-Up from real leads
   const urgentLead = useMemo(() => {
     if (!leads || leads.length === 0) return null;
 
@@ -225,12 +271,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           })
           .reduce((sum, l) => sum + (l.budgetAmount || Number(l.budget) || 0), 0);
         const targetPct = Math.round((dealsClosed / 5) * 100);
-        const volumeFormatted =
-          closedVolume >= 1_000_000
-            ? `$${(closedVolume / 1_000_000).toFixed(1)}M`
-            : closedVolume > 0
-            ? `$${(closedVolume / 1_000).toFixed(0)}k`
-            : '$0';
+        const volumeFormatted = formatMoney(closedVolume, { compact: true, currency });
 
         return {
           id: u.id,
@@ -245,7 +286,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }, [orgUsers, leads]);
 
   return (
-    <div className="p-5 sm:p-6 lg:p-8 flex flex-col gap-6">
+    <div className="p-5 sm:p-6 lg:p-8 flex flex-col gap-6 bg-[var(--bg-main)] text-[var(--text-main)]">
       {/* Top Executive Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col">
@@ -254,10 +295,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <span className="text-[#bdc9c1]" aria-hidden="true">
               ·
             </span>
-            <span className="text-[#3e4943]">Beverly Hills Flagship</span>
+            <span className="text-[#3e4943]">{orgName || 'Main Office'}</span>
           </div>
           {/* FIX #8: Real Name Greeting */}
-          <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-[34px] text-[#0b1c30] tracking-tight mt-0.5 leading-tight">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-[34px] text-[var(--text-main)] tracking-tight mt-0.5 leading-tight">
             Good morning, {greetingName}
           </h1>
           <p className="text-[14px] text-[#3e4943] mt-1">
@@ -289,7 +330,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 4 KPI Metrics Matrix */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI 1: Inbound Leads - FIX #9: Real leads count */}
-        <div className="bg-white rounded-xl p-5 flex flex-col justify-between border border-slate-200/80 group shadow-xs">
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 flex flex-col justify-between border border-[var(--border-color)] group shadow-xs">
           <div className="flex items-start justify-between">
             <span className="text-[12px] font-medium text-[#3e4943]">Total Inbound Leads</span>
             <div className="w-8 h-8 rounded-lg bg-[#e5eeff] flex items-center justify-center text-[#005d42]">
@@ -298,7 +339,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="my-3">
             <div className="flex items-baseline gap-2.5">
-              <span className="font-display font-bold text-[30px] text-[#0b1c30] leading-none tabular-nums">
+              <span className="font-display font-bold text-[30px] text-[var(--text-main)] leading-none tabular-nums">
                 {leads.length.toLocaleString()}
               </span>
               <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#006f67] tabular-nums">
@@ -314,7 +355,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* KPI 2: Assigned Leads - FIX #10: Real assigned count */}
-        <div className="bg-white rounded-xl p-5 flex flex-col justify-between border border-slate-200/80 shadow-xs">
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 flex flex-col justify-between border border-[var(--border-color)] shadow-xs">
           <div className="flex items-start justify-between">
             <span className="text-[12px] font-medium text-[#3e4943]">Assigned Leads</span>
             <div className="w-8 h-8 rounded-lg bg-[#99efe5] text-[#006f67] flex items-center justify-center">
@@ -323,7 +364,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="my-3">
             <div className="flex items-baseline gap-2.5">
-              <span className="font-display font-bold text-[30px] text-[#0b1c30] leading-none tabular-nums">
+              <span className="font-display font-bold text-[30px] text-[var(--text-main)] leading-none tabular-nums">
                 {assignedLeadsCount.toLocaleString()}
               </span>
               <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#006f67] tabular-nums">
@@ -347,16 +388,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* KPI 3: Active Listings - FIX #11, #12: Real properties length & pending escrow value */}
-        <div className="bg-white rounded-xl p-5 flex flex-col justify-between border border-slate-200/80 shadow-xs">
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 flex flex-col justify-between border border-[var(--border-color)] shadow-xs">
           <div className="flex items-start justify-between">
             <span className="text-[12px] font-medium text-[#3e4943]">Active Listings</span>
-            <div className="w-8 h-8 rounded-lg bg-[#e5eeff] text-[#005d42] flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-[#e5eeff] text-[#005d42] flex items-center justify-center font-bold text-[13px] select-none">
+              {currency === 'PKR' ? '₨' : currency === 'AED' ? 'د.إ' : '$'}
             </div>
           </div>
           <div className="my-3">
             <div className="flex items-baseline gap-2.5">
-              <span className="font-display font-bold text-[30px] text-[#0b1c30] leading-none tabular-nums">
+              <span className="font-display font-bold text-[30px] text-[var(--text-main)] leading-none tabular-nums">
                 {properties.length}
               </span>
               <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#006f67] tabular-nums">
@@ -377,39 +418,210 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        {/* KPI 4: Avg Escrow Close - FIX #13: Real computation from activities */}
-        <div className="bg-white rounded-xl p-5 flex flex-col justify-between border border-slate-200/80 shadow-xs">
+        {/* KPI 4: Total Pipeline Value */}
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 flex flex-col justify-between border border-[var(--border-color)] shadow-xs">
           <div className="flex items-start justify-between">
-            <span className="text-[12px] font-medium text-[#3e4943]">Avg Escrow Close</span>
-            <div className="w-8 h-8 rounded-lg bg-[#047857] text-white flex items-center justify-center">
-              <Clock className="w-4 h-4" />
+            <span className="text-[12px] font-medium text-[#3e4943]">Total Pipeline Value</span>
+            <div className="w-8 h-8 rounded-lg bg-[#99efe5] text-[#006f67] flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4" />
             </div>
           </div>
           <div className="my-3">
             <div className="flex items-baseline gap-2.5">
-              <span className="font-display font-bold text-[30px] text-[#0b1c30] leading-none tabular-nums">
-                {avgEscrowDays}
+              <span className="font-display font-bold text-[30px] text-[var(--text-main)] leading-none tabular-nums">
+                {totalPipelineValueFormatted}
+              </span>
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#006f67] tabular-nums">
+                <TrendingUp className="w-3.5 h-3.5" />
+                Active
               </span>
             </div>
             <div className="flex items-center gap-1.5 mt-3">
               <span className="inline-block w-2 h-2 rounded-full bg-[#006f67]" />
               <span className="text-[12px] text-[#3e4943] font-medium">
-                {avgEscrowDays !== '—' ? 'Calculated from closed deals' : 'No closed deals recorded yet'}
+                Total buyer purchasing power
               </span>
             </div>
           </div>
           <div className="flex items-center justify-between text-[11px] text-[#6e7a73]">
-            <span>Pipeline performance</span>
-            <span className="text-[#005d42] font-semibold">Verified</span>
+            <span>Across all active leads</span>
+            <span className="text-[#005d42] font-semibold">Live CRM</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Business Health & Net Profit Banner */}
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] p-5 sm:p-6 shadow-xs flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#e5eeff] flex items-center justify-center text-[#005d42]">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-[18px] text-[var(--text-main)] tracking-tight">
+                Business Health & Net Profit
+              </h2>
+              <p className="text-[12px] text-[#3e4943]">
+                Consolidated financial performance tracking brokerage revenue, expenses, and retained profits
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
+            <button
+              type="button"
+              onClick={() => onNavigate('commissions')}
+              className="font-semibold text-[#005d42] hover:text-[#004d37] hover:underline cursor-pointer"
+            >
+              Commissions
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              type="button"
+              onClick={() => onNavigate('expenses')}
+              className="font-semibold text-[#005d42] hover:text-[#004d37] hover:underline cursor-pointer"
+            >
+              Expenses
+            </button>
+          </div>
+        </div>
+
+        {/* 3 Financial Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 1. Gross Revenue */}
+          <div className="bg-[#f8fafc] rounded-xl p-4 sm:p-5 border border-slate-200/70 flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[12px] font-medium text-[#3e4943]">Gross Revenue</span>
+                <span className="block text-[10px] text-[#6e7a73] mt-0.5">Settled broker share</span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                Received
+              </span>
+            </div>
+            <div className="my-3">
+              <div className="font-display font-bold text-[28px] text-emerald-600 leading-tight tabular-nums">
+                {formatMoney(totalRevenue, { compact: true, currency })}
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 text-[12px] text-amber-700 font-medium">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>
+                  Pending:{' '}
+                  <span className="font-mono font-semibold">
+                    {formatMoney(totalPendingRevenue, { compact: true, currency })}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-[#6e7a73] pt-2 border-t border-slate-200/60">
+              <span>Commission earnings</span>
+              <span className="text-emerald-700 font-medium">Live sync</span>
+            </div>
+          </div>
+
+          {/* 2. Total Expenses */}
+          <div className="bg-[#f8fafc] rounded-xl p-4 sm:p-5 border border-slate-200/70 flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[12px] font-medium text-[#3e4943]">Total Expenses</span>
+                <span className="block text-[10px] text-[#6e7a73] mt-0.5">Operating overhead</span>
+              </div>
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60">
+                Outflow
+              </span>
+            </div>
+            <div className="my-3">
+              <div className="font-display font-bold text-[28px] text-rose-600 leading-tight tabular-nums">
+                {formatMoney(totalExpenses, { compact: true, currency })}
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 text-[12px] text-[#3e4943]">
+                <span>Rent, payroll, bills & marketing</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-[#6e7a73] pt-2 border-t border-slate-200/60">
+              <span>Operational costs</span>
+              <span className="text-rose-700 font-medium">Recorded</span>
+            </div>
+          </div>
+
+          {/* 3. Net Profit */}
+          <div className="bg-emerald-50/50 rounded-xl p-4 sm:p-5 border border-emerald-200/80 flex flex-col justify-between shadow-xs">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[12px] font-semibold text-emerald-950">Net Profit</span>
+                <span className="block text-[10px] text-emerald-800/80 mt-0.5">Revenue - Expenses</span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-300/40">
+                <TrendingUp className="w-3 h-3 text-emerald-600" />
+                <span>Brokerage Net</span>
+              </div>
+            </div>
+            <div className="my-3">
+              <div className="flex items-baseline gap-2.5">
+                <span className="font-display font-extrabold text-[28px] text-emerald-700 leading-tight tabular-nums">
+                  {formatMoney(totalRevenue - totalExpenses, { compact: true, currency })}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[12px] font-bold text-emerald-600">
+                  <TrendingUp className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 text-[12px] text-emerald-800 font-medium">
+                <span>
+                  Net Margin:{' '}
+                  <span className="font-mono font-semibold">
+                    {totalRevenue > 0
+                      ? `${(((totalRevenue - totalExpenses) / totalRevenue) * 100).toFixed(1)}%`
+                      : '0.0%'}
+                  </span>
+                </span>
+                <span className="text-emerald-500">·</span>
+                <span>Retained earnings</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-emerald-700 pt-2 border-t border-emerald-200/60">
+              <span>Brokerage bottom line</span>
+              <span className="font-semibold text-emerald-800">Healthy</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Charts & Agenda Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left 8 Cols: Chart & Portfolio */}
+        {/* Left 8 Cols: Chart & Portfolio — blur-gated when trial is locked */}
         <div className="lg:col-span-8 flex flex-col gap-6">
-          <RevenueVelocityChart />
+          {/* Trial-expired blur overlay over the analytics chart */}
+          <div className="relative rounded-xl overflow-hidden">
+            <div
+              className={locked ? 'blur-md pointer-events-none select-none brightness-75' : ''}
+              aria-hidden={locked}
+            >
+              <RevenueVelocityChart />
+            </div>
+            {locked && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-600 rounded-2xl px-8 py-7 flex flex-col items-center gap-4 shadow-2xl max-w-sm text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-800/20 flex items-center justify-center shadow-sm">
+                    <Lock className="w-7 h-7 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-display font-bold text-[#0b1c30] dark:text-slate-100 text-[17px] leading-snug">
+                      Brokerage License Required
+                    </p>
+                    <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                      Purchase a commercial plan to unlock analytics, revenue velocity charts, and deal telemetry.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('billing')}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#047857] to-[#005d42] hover:from-[#005d42] hover:to-[#004d37] text-white text-[13px] font-bold transition-all cursor-pointer shadow-md hover:shadow-lg hover:scale-[1.02]"
+                  >
+                    Purchase License ($49/mo)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Properties Summary Row */}
           <div className="bg-white rounded-xl p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">

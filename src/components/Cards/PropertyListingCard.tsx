@@ -122,10 +122,25 @@ export const PropertyListingCard: React.FC<PropertyListingCardProps> = ({
               <h2 className="font-display font-semibold text-lg text-[#0b1c30] group-hover:text-[#005d42] transition-colors mt-0.5">
                 {property.title}
               </h2>
-              <p className="flex items-center gap-1 text-[13px] text-[#3e4943] mt-0.5">
-                <MapPin className="w-3.5 h-3.5 text-[#6e7a73] shrink-0" />
-                <span>{property.address}</span>
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="flex items-center gap-1 text-[13px] text-[#3e4943]">
+                  <MapPin className="w-3.5 h-3.5 text-[#6e7a73] shrink-0" />
+                  <span>{property.address}</span>
+                </p>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    property.address || property.location || ''
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="View on Google Maps"
+                  aria-label="View on Google Maps"
+                  className="p-1 rounded-md text-[#005d42] hover:text-white hover:bg-[#005d42] transition-colors cursor-pointer shrink-0"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
 
             <div className="flex items-center gap-4 bg-[#eff4ff] rounded-lg px-4 py-2 text-center shrink-0">
@@ -204,6 +219,19 @@ export const PropertyListingCard: React.FC<PropertyListingCardProps> = ({
                 <span>Manage Listing</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  property.address || property.location || ''
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label="View on Google Maps"
+                title="View on Google Maps"
+                className="w-9 h-9 rounded-lg bg-[#eff4ff] hover:bg-[#e5eeff] hover:text-[#005d42] text-[#3e4943] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <MapPin className="w-4 h-4" />
+              </a>
               <button
                 type="button"
                 onClick={() => onShareListing(property)}
@@ -305,10 +333,25 @@ export const PropertyListingCard: React.FC<PropertyListingCardProps> = ({
           <h2 className="font-display font-semibold text-[18px] text-[#0b1c30] group-hover:text-[#005d42] transition-colors leading-snug">
             {property.title}
           </h2>
-          <p className="flex items-center gap-1 text-[13px] text-[#3e4943] mt-1 truncate">
-            <MapPin className="w-3.5 h-3.5 text-[#6e7a73] shrink-0" />
-            <span className="truncate">{property.address}</span>
-          </p>
+          <div className="flex items-center justify-between gap-1 text-[13px] text-[#3e4943] mt-1">
+            <p className="flex items-center gap-1 truncate">
+              <MapPin className="w-3.5 h-3.5 text-[#6e7a73] shrink-0" />
+              <span className="truncate">{property.address}</span>
+            </p>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                property.address || property.location || ''
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title="View on Google Maps"
+              aria-label="View on Google Maps"
+              className="p-1 rounded-md text-[#005d42] hover:text-white hover:bg-[#005d42] transition-colors cursor-pointer shrink-0"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+            </a>
+          </div>
 
           {/* 4-Column Architectural Specs Strip */}
           <div className="grid grid-cols-4 gap-1 bg-[#eff4ff] rounded-lg p-2.5 mt-4 text-center">
@@ -398,6 +441,19 @@ export const PropertyListingCard: React.FC<PropertyListingCardProps> = ({
               <span>Manage Listing</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                property.address || property.location || ''
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="View on Google Maps"
+              title="View on Google Maps"
+              className="w-9 h-9 rounded-lg bg-[#eff4ff] hover:bg-[#e5eeff] hover:text-[#005d42] text-[#3e4943] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            >
+              <MapPin className="w-4 h-4" />
+            </a>
             <button
               type="button"
               onClick={() => onShareListing(property)}

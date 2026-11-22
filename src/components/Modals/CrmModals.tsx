@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import { X, Loader2 } from 'lucide-react';
 import { useOrgUsers } from '../../lib/hooks/useOrgUsers';
-import { Lead, LeadStage, Property, PropertyStatus, PropertyType } from '../../types/crm';
+import { Lead, LeadStage, Property, PropertyStatus } from '../../types/crm';
 
 interface AddLeadModalProps {
   isOpen: boolean;
   defaultStage: LeadStage;
   orgId?: string | null;
   onClose: () => void;
-  onAddLead: (newLead: Lead) => void;
+  onAddLead: (newLead: Lead) => void | Promise<void>;
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = ({
@@ -29,12 +28,19 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({
   const [stage, setStage] = useState<LeadStage>(defaultStage);
   const [brokerId, setBrokerId] = useState('');
   const [note, setNote] = useState('');
+  // Buyer requirement fields
+  const [requirementType, setRequirementType] = useState('');
+  const [requirementSize, setRequirementSize] = useState('');
+  const [requirementUnit, setRequirementUnit] = useState('Marla');
+  const [preferredArea, setPreferredArea] = useState('');
+  const [saving, setSaving] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
+    setSaving(true);
 
     const numericBudget = budget.trim() ? Number(budget.replace(/[^0-9]/g, '')) || 0 : 0;
     const selectedBroker = orgUsers.find((b) => b.id === brokerId);
@@ -64,16 +70,32 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({
       noteType: note.trim() ? 'info' : undefined,
       isHighValue: numericBudget >= 1000000,
       isDirectInbound: source === 'Website Direct Form' || source === 'Direct Inbound',
+      requirementType: requirementType || undefined,
+      requirementSize: requirementSize ? Number(requirementSize) : undefined,
+      requirementUnit: requirementUnit || undefined,
+      preferredArea: preferredArea.trim() || undefined,
     };
 
-    onAddLead(created);
-    setName('');
-    setEmail('');
-    setPhone('');
-    setTargetProperty('');
-    setBudget('');
-    setNote('');
-    onClose();
+    try {
+      await onAddLead(created);
+      // Reset form
+      setName('');
+      setEmail('');
+      setPhone('');
+      setTargetProperty('');
+      setBudget('');
+      setNote('');
+      setRequirementType('');
+      setRequirementSize('');
+      setRequirementUnit('Marla');
+      setPreferredArea('');
+      onClose();
+    } catch (err) {
+      console.error('Failed to save lead:', err);
+      alert('Failed to save lead. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -225,6 +247,74 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({
             </div>
           </div>
 
+          {/* ── Buyer Requirements Section ─────────────────────────── */}
+          <div className="flex flex-col gap-3 p-4 rounded-xl bg-[#f0fdf4] border border-[#bbf7d0]">
+            <span className="text-[12px] font-bold text-[#005d42] uppercase tracking-wider">
+              Buyer Requirements
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">
+                  Looking For
+                </label>
+                <select
+                  value={requirementType}
+                  onChange={(e) => setRequirementType(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#bbf7d0] focus:border-[#047857] outline-none text-[13px] text-[#0b1c30]"
+                >
+                  <option value="">Select type…</option>
+                  <option value="House">House</option>
+                  <option value="Plot">Plot</option>
+                  <option value="Shop">Shop</option>
+                  <option value="Building">Building</option>
+                  <option value="Penthouse">Penthouse</option>
+                  <option value="Rent">Rent</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">
+                  Preferred Area
+                </label>
+                <input
+                  type="text"
+                  value={preferredArea}
+                  onChange={(e) => setPreferredArea(e.target.value)}
+                  placeholder="e.g. DHA Phase 6, Gulberg"
+                  className="w-full px-3.5 py-2 rounded-lg bg-white border border-[#bbf7d0] focus:border-[#047857] outline-none text-[13px] text-[#0b1c30]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">
+                Size Requirement
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={requirementSize}
+                  onChange={(e) => setRequirementSize(e.target.value)}
+                  placeholder="e.g. 10"
+                  className="flex-1 min-w-0 px-3.5 py-2 rounded-lg bg-white border border-[#bbf7d0] focus:border-[#047857] outline-none text-[13px] text-[#0b1c30] font-mono"
+                />
+                <select
+                  value={requirementUnit}
+                  onChange={(e) => setRequirementUnit(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white border border-[#bbf7d0] focus:border-[#047857] outline-none text-[13px] text-[#0b1c30] cursor-pointer"
+                >
+                  <option value="Marla">Marla</option>
+                  <option value="Kanal">Kanal</option>
+                  <option value="Sq Ft">Sq Ft</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">
               Consultation / Showing Notes (Optional)
@@ -242,15 +332,18 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#eff4ff] hover:bg-[#e5eeff] text-[#3e4943] text-[13px] font-semibold transition-colors cursor-pointer"
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-[#eff4ff] hover:bg-[#e5eeff] text-[#3e4943] text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-[#047857] hover:bg-[#005d42] text-white text-[13px] font-semibold transition-colors cursor-pointer"
+              disabled={saving}
+              className="px-5 py-2 rounded-lg bg-[#047857] hover:bg-[#005d42] text-white text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-2"
             >
-              Save Lead to Pipeline
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {saving ? 'Saving…' : 'Save Lead to Pipeline'}
             </button>
           </div>
         </form>

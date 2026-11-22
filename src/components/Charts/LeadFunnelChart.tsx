@@ -70,7 +70,10 @@ export const LeadFunnelChart: React.FC<LeadFunnelChartProps> = ({ data, loading 
       {/* Funnel Stage Bars */}
       <div className="space-y-2.5">
         {data.map((stageItem, idx) => {
-          const widthPct = Math.max(12, Math.round((stageItem.count / maxCount) * 100));
+          const widthPct =
+            stageItem.count > 0 && (stageItem.conversionPct ?? 1) > 0
+              ? Math.max(12, Math.round((stageItem.count / maxCount) * 100))
+              : 0;
           const prevCount = idx > 0 ? data[idx - 1].count : stageItem.count;
           const stepConversion = prevCount > 0 ? Math.round((stageItem.count / prevCount) * 100) : 100;
           const dropoffPct = 100 - stepConversion;
@@ -117,16 +120,20 @@ export const LeadFunnelChart: React.FC<LeadFunnelChartProps> = ({ data, loading 
               {/* Progress Bar Container */}
               <div className="h-7 w-full bg-slate-100 rounded-lg overflow-hidden p-0.5 relative flex items-center">
                 <div
-                  className="h-full rounded-md transition-all duration-500 ease-out flex items-center justify-between px-3"
+                  className={`h-full rounded-md transition-all duration-500 ease-out flex items-center justify-between ${
+                    widthPct === 0 ? 'w-0 px-0 opacity-0 overflow-hidden' : 'px-3'
+                  }`}
                   style={{
                     width: `${widthPct}%`,
                     backgroundColor: color,
-                    opacity: hoveredIdx !== null && !isHovered ? 0.7 : 1,
+                    opacity: widthPct === 0 ? 0 : hoveredIdx !== null && !isHovered ? 0.7 : 1,
                   }}
                 >
-                  <span className="text-[10px] font-bold text-white uppercase tracking-wider hidden sm:inline">
-                    {stageItem.conversionPct}% cumulative
-                  </span>
+                  {widthPct > 0 && (
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wider hidden sm:inline whitespace-nowrap">
+                      {stageItem.conversionPct}% cumulative
+                    </span>
+                  )}
                 </div>
 
                 {/* Dropoff marker */}

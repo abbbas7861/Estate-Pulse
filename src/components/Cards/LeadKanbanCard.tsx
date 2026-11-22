@@ -15,13 +15,16 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Lead, LeadStage } from '../../types/crm';
+import { WhatsAppIcon, openWhatsAppChat } from '../../lib/whatsapp';
 
 interface LeadKanbanCardProps {
   lead: Lead;
   stages: { id: LeadStage; label: string }[];
+  currentUserName?: string;
   onMoveStage: (leadId: string, newStage: LeadStage) => void;
   onAssignBroker: (leadId: string) => void;
   onActionClick: (lead: Lead, actionType: 'message' | 'call' | 'schedule') => void;
+  onWhatsAppClick?: (lead: Lead) => void;
   onDragStart: (e: React.DragEvent<HTMLDivElement>, leadId: string) => void;
   onSelect?: (lead: Lead) => void;
 }
@@ -29,9 +32,11 @@ interface LeadKanbanCardProps {
 export const LeadKanbanCard: React.FC<LeadKanbanCardProps> = ({
   lead,
   stages,
+  currentUserName,
   onMoveStage,
   onAssignBroker,
   onActionClick,
+  onWhatsAppClick,
   onDragStart,
   onSelect,
 }) => {
@@ -229,6 +234,27 @@ export const LeadKanbanCard: React.FC<LeadKanbanCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onWhatsAppClick) {
+                onWhatsAppClick(lead);
+              } else if (lead.phone) {
+                openWhatsAppChat(lead.phone, lead.name, currentUserName);
+              }
+            }}
+            disabled={!lead.phone}
+            className={`w-7 h-7 rounded-md flex items-center justify-center transition-all cursor-pointer ${
+              lead.phone
+                ? 'bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white shadow-2xs'
+                : 'text-slate-300 cursor-not-allowed opacity-40'
+            }`}
+            title={lead.phone ? `Message ${lead.name} on WhatsApp` : 'No phone number provided'}
+            aria-label={`WhatsApp ${lead.name}`}
+          >
+            <WhatsAppIcon className="w-3.5 h-3.5 fill-current" />
+          </button>
           <button
             type="button"
             onClick={() => onActionClick(lead, 'message')}
