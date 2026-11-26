@@ -922,7 +922,7 @@ export default function LandingPage() {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500">Ready to activate immediately?</span>
                 <a
-                  href="http://localhost:3000/?view=signup"
+                  href={`${APP_URL}/?view=signup`}
                   className="text-xs font-bold text-[#005d42] hover:underline cursor-pointer flex items-center gap-1"
                 >
                   <span>Sign Up Directly</span>
